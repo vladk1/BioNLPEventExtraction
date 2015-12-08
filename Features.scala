@@ -89,7 +89,7 @@ object Features {
 //    addTokenPOSFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, "POS of cand token") // didn't work result: -3% -2% -4% o_O
     addTokenPOSFeaturesInPlace(feats, sentence.tokens, candEndInd, y, "POS of next token")
 
-//    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd-2, y, 3, "POS of NGram tokens") //  didnt improve much
+//    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 2, "POS of NGram tokens") //  didnt improve much
 
 //  Since preposition heads are often indicators of temporal class, we created a new
 //  feature indicating when an event is part of a prepositional phrase. IN=preposition
@@ -146,7 +146,7 @@ object Features {
 
     // Todo used to not help:
     if (candSentenceMentions.size > 0) {
-        val mentionCount = getMentionsAroundCand(candSentenceMentions, candBeginInd, 2, 0) // Mentions -a +b around candidate
+        val mentionCount = getMentionsAroundCand(candSentenceMentions, candBeginInd, 4, 4) // Mentions -a +b around candidate
         feats += FeatureKey("number of Protein mentions Around candidate", List(mentionCount.size.toString, y)) -> 1.0
     }
 
@@ -220,7 +220,23 @@ object Features {
 
 
   def myArgumentFeatures(x: Candidate, y: Label): FeatureVector = {
-    ???
+    val doc = x.doc
+    val begin = x.begin
+    val end = x.end
+    val thisSentence = doc.sentences(x.sentenceIndex)
+    val event = thisSentence.events(x.parentIndex) //use this to gain access to the parent event
+
+    val eventHeadToken = thisSentence.tokens(event.begin) //first token of event
+    val feats = new mutable.HashMap[FeatureKey,Double]
+    feats += FeatureKey("label bias", List(y)) -> 1.0
+    val token = thisSentence.tokens(begin) //first word of argument
+    feats += FeatureKey("first argument word", List(token.word, y)) -> 1.0
+
+    feats += FeatureKey("is protein_first trigger word", List(x.isProtein.toString,eventHeadToken.word, y)) -> 1.0
+
+    feats += FeatureKey("event Head Token", List(eventHeadToken.word, y)) -> 1.0
+
+    feats.toMap
   }
 
 

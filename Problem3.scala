@@ -46,7 +46,7 @@ object Problem3Triggers {
     // use training algorithm to get weights of model
     //TODO: change the trainer to explore different training algorithms
 //    val triggerWeights = PrecompiledTrainers.trainNB(triggerTrain,triggerModel.feat)
-    val triggerWeights = PrecompiledTrainers.trainPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
+    val triggerWeights = PrecompiledTrainers.trainPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 10)
 
 //    triggerWeights.foreach(weight => {
 //      println(weight)
@@ -104,10 +104,11 @@ object Problem3Arguments {
     val argumentLabels = argumentTrain.map(_._2).toSet
 
     // define model
-    val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
+//    val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
+    val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeatures)
 
 //    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
-    val argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,2)
+    val argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,10)
 
     // get predictions on dev
     val (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
