@@ -12,7 +12,7 @@ object Problem3Triggers {
 
     // load train and dev data
     // read the specification of the method to load more/less data for debugging speedup
-    val (trainDocs, devDocs) = BioNLP.getTrainDevDocuments(train_dir, 0.8, 500)
+    val (trainDocs, devDocs) = BioNLP.getTrainDevDocuments(train_dir, 0.8, 500) // 500
     // load test
     val testDocs = BioNLP.getTestDocuments(test_dir)
     // make tuples (Candidate,Gold)
@@ -40,12 +40,18 @@ object Problem3Triggers {
 
     // define model
     //TODO: change the features function to explore different types of features
-    val triggerModel = SimpleClassifier(triggerLabels, Features.defaultTriggerFeatures)
+//    val triggerModel = SimpleClassifier(triggerLabels, Features.defaultTriggerFeatures)
+    val triggerModel = SimpleClassifier(triggerLabels, Features.myTriggerFeatures)
 
     // use training algorithm to get weights of model
     //TODO: change the trainer to explore different training algorithms
-    //val triggerWeights = PrecompiledTrainers.trainNB(triggerTrain,triggerModel.feat)
+//    val triggerWeights = PrecompiledTrainers.trainNB(triggerTrain,triggerModel.feat)
     val triggerWeights = PrecompiledTrainers.trainPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
+
+//    triggerWeights.foreach(weight => {
+//      println(weight)
+//    })
+
 
     // get predictions on dev
     val (triggerDevPred, triggerDevGold) = triggerDev.map { case (trigger, gold) => (triggerModel.predict(trigger, triggerWeights), gold) }.unzip
@@ -100,7 +106,7 @@ object Problem3Arguments {
     // define model
     val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
 
-    //val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
+//    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
     val argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,2)
 
     // get predictions on dev
