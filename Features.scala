@@ -3,6 +3,7 @@ package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 import uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 /**
  * Created by Georgios on 05/11/2015.
@@ -65,6 +66,7 @@ object Features {
     val thisSentence = doc.sentences(x.sentenceIndex) //use this to gain access to the parent sentence
     val feats = new mutable.HashMap[FeatureKey,Double]
 
+
     feats += FeatureKey("label bias", List(y)) -> 1.0 //bias feature
 
     // tokens
@@ -74,13 +76,14 @@ object Features {
     addEntityBasedFeaturesInPlace(feats, thisSentence, begin, end, y)
 
     // dependencies
-    addSyntaxBasedFeaturesInPlace(feats, thisSentence, begin, end, y)
+    addSyntaxBasedFeaturesInPlace(feats, thisSentence, begin, end, x, y)
 
     feats.toMap
   }
 
   def addLexicalFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, y:Label): mutable.HashMap[assignment2.FeatureKey, Double] = {
     val candToken = sentence.tokens(candBeginInd)
+
 
     addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, "candidate token")
 
@@ -213,75 +216,44 @@ object Features {
   }
 
 
-  def addSyntaxBasedFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, y: Label) = {
+  def addSyntaxBasedFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int,x: Candidate, y: Label) = {
     val candSentenceDeps = sentence.deps
+    val candToken = sentence.tokens(candBeginInd)
 
     // model all syntactic dependency paths up to depth two
     // we extract token features the first and last token in these paths
     val depsMap = new mutable.HashMap[Int,List[(String, Int)]] withDefaultValue Nil
+
     candSentenceDeps.foreach(dep => {
-      depsMap(dep.head) ::= (dep.label, dep.mod)
+      depsMap(dep.mod) ::= (dep.label, dep.head)
     })
 
-//    feats += FeatureKey("dependency map contains candidate", List(depsMap.contains(candBeginInd).toString, y)) -> 1.0
-
-    if (depsMap.contains(candBeginInd)) {
-//      defaultDependendencyFeaturesInPlace(feats, sentence, candBeginInd, depsMap, 2, y)
-//      defaultDependendencyFeaturesInPlace(feats, sentence, candBeginInd, depsMap, 3, y)
-//      defaultDependendencyFeaturesInPlace(feats, sentence, candBeginInd, depsMap, 4, y)
-    }
-
-  }
-  def defaultDependendencyFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, depsMap: mutable.Map[Int,List[(String, Int)]], depDepth:Int, y: Label) = {
-    val firstToken = sentence.tokens(candBeginInd)
-    val twoDepthDependencyInfo = syntacticDependencyDepthTokens(depDepth, depsMap, sentence, candBeginInd, List(), "", "", "")
-
-    feats += FeatureKey("no syntactic dependency", List((twoDepthDependencyInfo.size==0).toString, y)) -> 1.0
-    if (twoDepthDependencyInfo.size > 0) {
-      twoDepthDependencyInfo.foreach(depInfo => {
-        val lastToken = depInfo._1
-        val depPath = depInfo._2
-        val stemPath = depInfo._3
-        val posPath = depInfo._4
-//        println(depPath)
-//        println(stemPath)
-//        println(posPath)
-
-        feats += FeatureKey("syntactic dependency dep path depth="+depDepth, List(depPath, y)) -> 1.0
-        feats += FeatureKey("syntactic dependency stem path depth="+depDepth, List(stemPath, y)) -> 1.0
-        feats += FeatureKey("syntactic dependency pos path depth="+depDepth, List(posPath, y)) -> 1.0
-
-      })
-    }
-  }
-
-  // Here going through the dependency graph and collecting dependency path + tokens in the end of the path
-  def syntacticDependencyDepthTokens(depth: Int, depsMap: mutable.Map[Int, List[(String, Int)]], sentence: Sentence, candBeginInd:Int, finalTokens:List[(Token, String, String, String)],
-                                     depPath:String, stemPath:String, posPath:String):List[(Token, String, String, String)] = {
-      val tokens = sentence.tokens
-      var finalMutableTokens = List[(Token, String, String, String)]()
-      if (depth==0) {
-        (sentence.tokens(candBeginInd),depPath, stemPath, posPath) :: finalTokens
-      } else {
-        if (depsMap.contains(candBeginInd)) {
-
-          depsMap(candBeginInd).foreach(dep => {
-            val newHead = dep._2
-            val newDepPath = depPath+" "+dep._1
-            val curToken = tokens(candBeginInd)
-            val newStemPath = stemPath+" "+curToken.stem
-            val newPosPath = posPath+" "+curToken.pos
-            finalMutableTokens = finalMutableTokens ++ syntacticDependencyDepthTokens(depth - 1, depsMap, sentence, newHead, List(),
-              newDepPath, newStemPath, newPosPath)
-          })
-          finalMutableTokens
-        }
-        finalMutableTokens
+      if (depsMap.contains(candBeginInd)) {
+        getAllPaths(1, y, feats, depsMap, sentence, candBeginInd, ArrayBuffer[String](), ArrayBuffer[String]());
       }
   }
 
 
+  def getAllPaths(depth: Int,  y: Label, feats: mutable.HashMap[FeatureKey, Double], depsMap: mutable.Map[Int, List[(String, Int)]], sentence: Sentence, idx: Int, posPath: ArrayBuffer[String], edgeLabel: ArrayBuffer[String]): Unit = {
 
+//    println("idx="+idx)
+//    println(sentence.tokens)
+
+    if (depsMap.contains(idx) && depth < 5) {
+      depsMap(idx).foreach(dep => {
+        edgeLabel += dep._1
+        val token = sentence.tokens(idx)
+        posPath += token.pos
+        getAllPaths(depth +1 , y, feats, depsMap, sentence, dep._2, posPath, edgeLabel);
+        })
+      }
+
+    else{
+      //add feature
+      feats += FeatureKey("syntactic dependency on edge labels", List(edgeLabel.toString(), posPath.toString(), y)) -> 1.0
+//      feats += FeatureKey("syntactic dependency on pos", List(posPath.toString(), y)) -> 1.0
+    }
+  }
 
   def myArgumentFeatures(x: Candidate, y: Label): FeatureVector = {
     val doc = x.doc
