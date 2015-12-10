@@ -19,15 +19,13 @@ object Problem2 {
    * @tparam Y type of output.
    * @return a linear model trained using the perceptron algorithm.
    */
-  def trainAvgPerceptron[X, Y](instances: Seq[(X, Y)],
+  def trainAvgPerceptronNaive[X, Y](instances: Seq[(X, Y)],
                                feat: (X, Y) => FeatureVector,
                                predict: (X, Weights) => Y,
                                iterations: Int = 2,
                                learningRate: Double = 1.0): Weights = {
-    //TODO implement the averaged perceptron trainer
     val weights:MutableWeights = mutable.Map() withDefaultValue 0.0
     val weightsAvr:MutableWeights = mutable.Map() withDefaultValue 0.0
-
     for(i <- 0 until iterations) {
       instances.foreach(instance => {
         val X = instance._1
@@ -36,17 +34,49 @@ object Problem2 {
         if (goldLabel != guessLabel) {
           updateWeights(weights, feat(X, goldLabel), feat(X, guessLabel), learningRate)
         }
-
         for (weight <- weights) {
           weightsAvr(weight._1) += weights(weight._1)
         }
-
       })
     }
-    weightsAvr.map(weight => {
-      (weight._1, weight._2/(iterations+instances.size))
+    // For the same feature key divide the sum of weights
+    weightsAvr.foreach(weight => {
+      weightsAvr(weight._1) = weight._2 / (iterations*instances.size)
     })
     weightsAvr
+  }
+
+  def trainAvgPerceptron[X, Y](instances: Seq[(X, Y)],
+                               feat: (X, Y) => FeatureVector,
+                               predict: (X, Weights) => Y,
+                               iterations: Int = 2,
+                               learningRate: Double = 1.0): Weights = {
+    val weights:MutableWeights = mutable.Map() withDefaultValue 0.0
+    val weightsAvr:MutableWeights = mutable.Map() withDefaultValue 0.0
+    val total = (instances.size*iterations).toDouble
+    var count = 0
+    for(i <- 0 until iterations) {
+      instances.foreach(instance => {
+        val X = instance._1
+        val goldLabel = instance._2
+        val guessLabel = predict(X, weights)
+        if (goldLabel != guessLabel) {
+          updateWeights(weights, feat(X, goldLabel), feat(X, guessLabel), learningRate)
+          updateAverageWeights(weightsAvr, feat(X, goldLabel), feat(X, guessLabel),(total-count)/total)
+        }
+        count+=1
+      })
+    }
+    weightsAvr
+  }
+
+  def updateAverageWeights(w: MutableWeights, f_gold: FeatureVector, f_guess: FeatureVector, scale: Double) = {
+    for ((k, v) <- f_gold) {
+      w(k) += v * scale
+    }
+    for ((k, v) <- f_guess) {
+      w(k) -= v * scale
+    }
   }
 
   def updateWeights(w: MutableWeights, f_gold: FeatureVector, f_guess: FeatureVector, scale: Double) = {
@@ -89,8 +119,17 @@ object Problem2 {
     // define model
     val triggerModel = SimpleClassifier(triggerLabels, defaultTriggerFeatures)
 
-    val myWeights = trainAvgPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 1)
-    val precompiledWeights = PrecompiledTrainers.trainAvgPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 1)
+    val startNaiveTime = java.lang.System.currentTimeMillis();
+    val myNaiveWeights = trainAvgPerceptronNaive(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
+    println("naive time="+(java.lang.System.currentTimeMillis()-startNaiveTime))
+
+    val startOptTime = java.lang.System.currentTimeMillis();
+    val myWeights = trainAvgPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
+    println("opt time="+(java.lang.System.currentTimeMillis()-startOptTime))
+
+    val startPrecompileTime = java.lang.System.currentTimeMillis();
+    val precompiledWeights = PrecompiledTrainers.trainAvgPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
+    println("precompile time="+(java.lang.System.currentTimeMillis()-startPrecompileTime))
 
     // get predictions on dev
     val (myPred, gold) = triggerDev.map { case (trigger, gold) => (triggerModel.predict(trigger, myWeights), gold) }.unzip
