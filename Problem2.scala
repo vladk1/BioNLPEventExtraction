@@ -119,15 +119,16 @@ object Problem2 {
     // define model
     val triggerModel = SimpleClassifier(triggerLabels, defaultTriggerFeatures)
 
-    val startNaiveTime = java.lang.System.currentTimeMillis();
-    val myNaiveWeights = trainAvgPerceptronNaive(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
-    println("naive time="+(java.lang.System.currentTimeMillis()-startNaiveTime))
 
-    val startOptTime = java.lang.System.currentTimeMillis();
+    val startOptTime = java.lang.System.currentTimeMillis()
     val myWeights = trainAvgPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
     println("opt time="+(java.lang.System.currentTimeMillis()-startOptTime))
 
-    val startPrecompileTime = java.lang.System.currentTimeMillis();
+    val startNaiveTime = java.lang.System.currentTimeMillis()
+    val myNaiveWeights = trainAvgPerceptronNaive(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
+    println("naive time="+(java.lang.System.currentTimeMillis()-startNaiveTime))
+
+    val startPrecompileTime = java.lang.System.currentTimeMillis()
     val precompiledWeights = PrecompiledTrainers.trainAvgPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 2)
     println("precompile time="+(java.lang.System.currentTimeMillis()-startPrecompileTime))
 
