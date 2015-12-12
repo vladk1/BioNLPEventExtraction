@@ -1,5 +1,7 @@
 package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
+import scala.collection.mutable
+
 /**
  * Created by Georgios on 06/11/2015.
  */
@@ -107,23 +109,43 @@ object Problem3Arguments {
 //    val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
     val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeatures)
 
-//    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
-    val argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,1)
+//    var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,10)
+//    // get predictions on dev
+//    var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
+//    // evaluate on dev
+//    var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
+//    println("Evaluation for argument classification:")
+//    println(argumentDevEval.toString)
+//
+//    ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
+//
+//    // get predictions on test
+//    var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
+//    // write to file
+//    Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
 
-    // get predictions on dev
-    val (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
-    // evaluate on dev
-    val argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
-    println("Evaluation for argument classification:")
-    println(argumentDevEval.toString)
+    var scores = new mutable.HashMap[Int, Double]()
 
+    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
+    for(i<- 1 to 10){
+      var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,i)
+      // get predictions on dev
+      var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
+      // evaluate on dev
+      var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
+      println("Evaluation for argument classification:")
+      println(argumentDevEval.averageF1.toString)
+      scores.put(i,argumentDevEval.averageF1)
+//      ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
 
-    ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
+      // get predictions on test
+      var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
+      // write to file
+      Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
+    }
 
-    // get predictions on test
-    val argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
-    // write to file
-    Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
+    println(scores)
+    println(scores.maxBy(_._2))
   }
 
 }
