@@ -1,5 +1,6 @@
 package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
+import breeze.numerics.abs
 import uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
 import scala.collection.mutable
@@ -133,6 +134,9 @@ object Features {
     }
   }
 
+
+
+
   def addNGramPosFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], tokens: IndexedSeq[Token], i: Int, y: Label, nGram: Int, parent: String) = {
     if (i >= 0 && tokens.size > i + nGram) {
       val ngramBasicTokenStrings = getNgramBasicTokenString(i, nGram, tokens)
@@ -264,54 +268,67 @@ object Features {
 //      feats += FeatureKey("syntactic dependency on pos", List(posPath.toString(), y)) -> 1.0
     }
   }
-  
+
   def myArgumentFeatures(x: Candidate, y: Label): FeatureVector = {
-    //    println(x)
-    //    println(y)
+//        println(x)
+//        println(y)
     val doc = x.doc
     val begin = x.begin
     val end = x.end
-    val thisSentence = doc.sentences(x.sentenceIndex)
-    val event = thisSentence.events(x.parentIndex) //use this to gain access to the parent event
+    val sentence = doc.sentences(x.sentenceIndex)
+    val candSentenceMentions = sentence.mentions
+    val event = sentence.events(x.parentIndex) //use this to gain access to the parent event
+    val eventHeadToken = sentence.tokens(event.begin) //first token of event
+    val token = sentence.tokens(begin) //first word of argument
 
-    val eventHeadToken = thisSentence.tokens(event.begin) //first token of event
     val feats = new mutable.HashMap[FeatureKey, Double]
+
+//   bias decreases alottttt!!!!!!!!!!!!!!!!!!!!! we need it-> bcause there are many Nones (f1 however desnt take into account the None label)
     feats += FeatureKey("label bias", List(y)) -> 1.0
-    val token = thisSentence.tokens(begin) //first word of argument
-    feats += FeatureKey("first argument word", List(token.word, y)) -> 1.0
 
-    feats += FeatureKey("is protein_first trigger word", List(x.isProtein.toString, eventHeadToken.word, y)) -> 1.0
-
-    feats += FeatureKey("event Head Token", List(eventHeadToken.word, y)) -> 1.0
-
-    // trigger features
-    // lexical
-    addLexicalFeaturesInPlace(feats, thisSentence, begin, end, y)
-
-    // check if upper case || contains number
-    val hasNumber = token.word.matches("^[0-9]*$")
-    val hasUpperCase = token.word.matches("^[A-Z]*$")
-    feats += FeatureKey("has number", List(token.word, hasNumber.toString, y)) -> 1.0
-    feats += FeatureKey("has upper case", List(token.word, hasUpperCase.toString, y)) -> 1.0
-
-    // mentions
-    //    addArgumentEntityBasedFeaturesInPlace(feats, thisSentence, begin, end, y)
-
-    // dependencies
-    //    addArgumentSyntaxBasedFeaturesInPlace(feats, thisSentence, begin, end, y)
+    addArgumentLexicalFeatures(x, feats, sentence, begin, end, eventHeadToken, y);
+    addArgumentEntityBasedFeaturesInPlace(x, feats,sentence, begin, end, eventHeadToken, y);
+    addArgsSyntaxBasedFeatures(feats, sentence, eventHeadToken, x, y)
 
     feats.toMap
   }
 
   //  Argument lexical features
-  def addArgumentLexicalFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, y: Label): mutable.HashMap[assignment2.FeatureKey, Double] = {
+  def addArgumentLexicalFeatures(x:Candidate, feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, eventTok: Token, y: Label): mutable.HashMap[assignment2.FeatureKey, Double] = {
     val candToken = sentence.tokens(candBeginInd)
+    val tokens = sentence.tokens
 
-    //  add basic token features around candidate word
-    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, "candidate trigger word")
+    if (candBeginInd >= 0 && tokens.size > candBeginInd) {
+      //    lexical string: helps to count general occurrence of particular word as arguments
+      feats += FeatureKey("lexical feature based on word beg", List(tokens(candBeginInd).word, y)) -> 1.0
+      //    stem: helps to count general occurrence of particular modification of word as event trigger (e.g. activate, activates, activating)
+      feats += FeatureKey("lexical feature based on stem beg", List(tokens(candBeginInd).stem, y)) -> 1.0
+      //    part-of-speech tag: 98.7 per cent of trigger words are verbs, nouns or adjective
+      feats += FeatureKey("lexical feature based on pos beg", List(tokens(candBeginInd).pos, y)) -> 1.0
+      feats += FeatureKey("lexical feature based on pos event ", List(eventTok.pos,  y)) -> 1.0
+
+      feats += FeatureKey("lexical feature based on length of edge ", List(abs(eventTok.begin - candBeginInd).toString , y)) -> 1.0
+      feats += FeatureKey("lexical feature based on - event token", List(eventTok.word.contains("-").toString, x.isProtein.toString, y)) -> 1.0
+
+
+//      println(getProteinCountArgs(eventTok.begin, candBeginInd, sentence) + "    " + y)
+//      feats += FeatureKey("protein mentions between start and end node of the argument edge", List((getProteinCountArgs(eventTok.begin, candBeginInd, sentence)>0).toString(), y)) -> 1.0
+
+
+      //      didn't help
+      //      val hasNumberBeg = tokens(beg).word.matches("^[0-9]*$")
+      //      val hasNumberEnd = tokens(end).word.matches("^[0-9]*$")
+      //      val hasUpperCase = tokens(end).word.matches("^[A-Z]*$")
+
+      //      feats += FeatureKey("end has number", List(hasNumberBeg.toString, hasNumberEnd.toString, y)) -> 1.0
+      //      feats += FeatureKey(parent+"end has uppercase", List(hasUpperCase.toString, y)) -> 1.0
+    }
+
+//    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candEndInd, y, "candidate trigger word")
     //  add n-grams (n = 1,2,3) to candidate word
-    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 3, "candidate trigger word")
-    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 2, "candidate trigger word")
+//    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 2, "candidate trigger word")
+//    addArgsNGramPosFeaturesInPlace(feats, sentence.tokens, eventTok.index, y, 3, "candidate arg trigram word")
+    addArgsNGramPosFeaturesInPlace(feats, sentence.tokens, eventTok.index, y, 2, "candidate arg word")
 
     //  add basic token features around candidate argument word
     //    addBasicTokenFeaturesInPlace(feats, sentence.tokens.first)
@@ -323,10 +340,10 @@ object Features {
     //    //    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd+1, y, "right token from candidate")
     //
     //    //  bigrams from candidate
-    //    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 2, "right token from candidate")
+//        addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 2, "right token from candidate")
     //    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd-1, y, 2, "right token from candidate")
     //    //  threegrams from candidate
-    //    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 3, "right token from candidate")
+//        addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 3, "right token from candidate")
     //    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd-2, y, 3, "right token from candidate")
 
 
@@ -342,6 +359,96 @@ object Features {
     //    addAuxilBeforeEventWordFeatInPlace(feats, sentence.tokens, candBeginInd-1, y, "Auxiliaries presence/absence of not before the event")
 
     feats
+  }
+
+  def addArgumentEntityBasedFeaturesInPlace(x: Candidate, feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, eventTok: Token, y: Label) = {
+
+    feats += FeatureKey("Number of prot mentions in candidate's sentence", List(sentence.mentions.size.toString, y)) -> 1.0
+//    feats += FeatureKey("is_protein first argument word", List(x.isProtein.toString, eventTok.word, y)) -> 1.0
+    feats += FeatureKey("is_protein first argument and stem of event token", List(x.isProtein.toString, eventTok.stem, y)) -> 1.0
+
+//    val nearestProteinDist = getNearestDistanceProtein(candSentenceMentions, candBeginInd, toRight = true, toLeft = true)
+//    //    println("nearestProteinDist="+nearestProteinDist)
+//    feats += FeatureKey("Nearest protein distance", List(nearestProteinDist.toString, y)) -> 1.0
+//    val nearestProteinDistToRight = getNearestDistanceProtein(candSentenceMentions, candBeginInd, toRight = true, toLeft = false)
+//    feats += FeatureKey("Nearest protein distance to right", List(nearestProteinDistToRight.toString, y)) -> 1.0
+//    val nearestProteinDistToLeft = getNearestDistanceProtein(candSentenceMentions, candBeginInd, toRight = false, toLeft = true)
+//    feats += FeatureKey("Nearest protein distance to left", List(nearestProteinDistToLeft.toString, y)) -> 1.0
+
+//    if (sentence.mentions.size > 0) {
+//      //       doesnt help
+//              val mentionCount = getMentionsAroundCand(sentence.mentions, candBeginInd, 4, 4) // Mentions -a +b around candidate
+//              feats += FeatureKey("number of Protein mentions Around candidate", List(mentionCount.size.toString, y)) -> 1.0
+//    }
+
+  }
+
+
+  def addArgsSyntaxBasedFeatures(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, eventTok: Token, x: Candidate, y: Label) = {
+    val candSentenceDeps = sentence.deps
+    val argToken = sentence.tokens(x.begin)
+    val eventIdx = eventTok.index;
+
+    // model all syntactic dependency paths up to depth two
+    // we extract token features the first and last token in these paths
+    val depsMap = new mutable.HashMap[Int, List[(String, Int)]] withDefaultValue Nil
+    candSentenceDeps.foreach(dep => {
+      depsMap(dep.head) ::= (dep.label, dep.mod)
+    })
+
+    if (depsMap.contains(eventIdx)) {
+      depsMap.get(eventIdx).get.foreach(d => {
+        if(x.begin <= d._2 && d._2 <= x.end){
+          feats += FeatureKey("label based dependency", List(d._1, y)) -> 1.0
+        }
+      })
+    }
+  }
+
+  def getProteinCountArgs(startIdx:Int, endIdx: Int, sentence: Sentence): Int ={
+    val protMentions = sentence.mentions
+
+    if(abs(startIdx - endIdx) > 1){
+      var protCount = 0;
+
+      if(startIdx < endIdx){
+
+        for(i <- startIdx+1 to endIdx -1){
+          protMentions.foreach(ment => {
+            if(ment.begin == i){
+              protCount+=1
+            }
+          })
+        }
+
+        protCount
+
+      }
+      else{
+
+        for(i <- endIdx+1 to startIdx -1){
+          protMentions.foreach(ment => {
+            if(ment.begin == i){
+              protCount+=1
+            }
+          })
+        }
+
+        protCount
+
+      }
+    }
+    else 0
+  }
+
+
+  def addArgsNGramPosFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], tokens: IndexedSeq[Token], i: Int, y: Label, nGram: Int, parent: String) = {
+    if (i >= 0 && tokens.size > i + nGram) {
+      val ngramBasicTokenStrings = getNgramBasicTokenString(i, nGram, tokens)
+//      feats += FeatureKey(parent + " ngram word", List(ngramBasicTokenStrings._1, y)) -> 1.0
+      feats += FeatureKey(parent + " ngram stem", List(ngramBasicTokenStrings._2, y)) -> 1.0
+      feats += FeatureKey(parent + " ngram pos", List(ngramBasicTokenStrings._3, y)) -> 1.0
+    }
   }
 
 }
