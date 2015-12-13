@@ -43,18 +43,23 @@ object Problem3Triggers {
 //    val triggerModel = SimpleClassifier(triggerLabels, Features.defaultTriggerFeatures)
     val triggerModel = SimpleClassifier(triggerLabels, Features.myTriggerFeatures)
 
+
     // use training algorithm to get weights of model
     //TODO: change the trainer to explore different training algorithms
-//    val triggerWeights = PrecompiledTrainers.trainNB(triggerTrain,triggerModel.feat)
+    //    val triggerWeights = PrecompiledTrainers.trainNB(triggerTrain,triggerModel.feat)
     val triggerWeights = PrecompiledTrainers.trainPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 10)
 
-//    triggerWeights.foreach(weight => {
-//      println(weight)
-//    })
+//    trick to print out weights with mention of word
+//        val sortedWeights = ListMap(triggerWeights.toSeq.sortBy(_._2):_*)
+//        sortedWeights.foreach(weight => {
+//          if (weight._1.toString.contains("protein")) {
+//            println(weight)
+//          }
+//        })
 
 
     // get predictions on dev
-    val (triggerDevPred, triggerDevGold) = triggerDev.map { case (trigger, gold) => (triggerModel.predict(trigger, triggerWeights), gold) }.unzip
+    val (triggerDevPred, triggerDevGold) = triggerDev.map { case (trigger, gold) => (triggerModel.predict(trigger, triggerWeights), gold)}.unzip
     // evaluate on dev
     val triggerDevEval = Evaluation(triggerDevGold, triggerDevPred, Set("None"))
     // print evaluation results
@@ -62,10 +67,10 @@ object Problem3Triggers {
     println(triggerDevEval.toString)
 
     ErrorAnalysis(triggerDev.unzip._1,triggerDevGold,triggerDevPred).showErrors(5)
-
-    // get predictions on test
+//
+//    // get predictions on test
     val triggerTestPred = triggerTest.map { case (trigger, dummy) => triggerModel.predict(trigger, triggerWeights) }
-    // write to file
+//    // write to file
     Evaluation.toFile(triggerTestPred, "./data/assignment2/out/simple_trigger_test.txt")
   }
 }
