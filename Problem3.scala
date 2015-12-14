@@ -1,5 +1,6 @@
 package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
+import scala.collection.immutable.ListMap
 import scala.collection.mutable
 
 /**
@@ -52,12 +53,12 @@ object Problem3Triggers {
     val triggerWeights = PrecompiledTrainers.trainPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 10)
 
 //    trick to print out weights with mention of word
-//        val sortedWeights = ListMap(triggerWeights.toSeq.sortBy(_._2):_*)
-//        sortedWeights.foreach(weight => {
-//          if (weight._1.toString.contains("protein")) {
-//            println(weight)
-//          }
-//        })
+    val sortedWeights = ListMap(triggerWeights.toSeq.sortBy(_._2):_*)
+    sortedWeights.foreach(weight => {
+      if (weight._1.toString.contains("syntactic dependency")) {
+        println(weight)
+      }
+    })
 
 
     // get predictions on dev
