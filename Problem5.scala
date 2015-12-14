@@ -1,5 +1,8 @@
 package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
+
+import uk.ac.ucl.cs.mr.statnlpbook.assignment2._
+
 import scala.collection.mutable
 
 /**
@@ -50,7 +53,7 @@ object Problem5{
     // define model
     //TODO: change the features function to explore different types of features
     //TODO: experiment with the unconstrained and constrained (you need to implement the inner search) models
-//    val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+    val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
     val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
 
     // use training algorithm to get weights of model
@@ -110,6 +113,12 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
 
     }
 
+//    def argmax(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
+//      val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
+//      scores.maxBy(_._2)._1
+//
+//    }
+
     val bestTrigger = argmax(triggerLabels,x,weights,triggerFeature)
 
     var bestArguments: Seq[Label] = List()
@@ -130,7 +139,8 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
       // check count of label "Theme"
       if (bestArguments.count(_.toString == "Theme") == 0) {
         // make map of highest feat score for "Theme"
-        val themeScores = x.arguments.map(x => x -> dot(feat(x, (argumentLabels.filterNot(_.toString == "Theme").head, argumentLabels.toSeq)), weights)).toMap withDefaultValue 0.0
+
+        val themeScores = x.arguments.toSeq.map(x => x -> dot(argumentFeature(x, argumentLabels.filterNot(_.toString() == "Theme").head), weights)).toMap withDefaultValue 0.0
         var count = 0
         for (arg <- x.arguments) {
           if (arg == themeScores.maxBy(_._2)._1) {
