@@ -299,49 +299,18 @@ object Features {
 
     if (candBeginInd >= 0 && tokens.size > candBeginInd) {
       //    lexical string: helps to count general occurrence of particular word as arguments
-
-      feats += FeatureKey(" lexical feature based on word beg", List(tokens(candBeginInd).word, y)) -> 1.0
+      feats += FeatureKey(" lexical feature based on word argument", List(tokens(candBeginInd).word, y)) -> 1.0
         //    stem: helps to count general occurrence of particular modification of word as event trigger (e.g. activate, activates, activating)
-      feats += FeatureKey("  lexical feature based on stem beg", List(tokens(candBeginInd).stem, y)) -> 1.0
+      feats += FeatureKey("  lexical feature based on stem argument", List(tokens(candBeginInd).stem, y)) -> 1.0
       //    part-of-speech tag: 98.7 per cent of trigger words are verbs, nouns or adjective
-      feats += FeatureKey("lexical feature based on pos beg", List(tokens(candBeginInd).pos, y)) -> 1.0
-      feats += FeatureKey("lexical feature based on pos event ", List(eventTok.pos,  y)) -> 1.0
-
-      feats += FeatureKey("lexical feature based on length of edge ", List(abs(eventTok.begin - candBeginInd).toString, y)) -> 1.0
-      feats += FeatureKey("lexical feature based on - event token", List(eventTok.word.contains("-").toString, x.isProtein.toString, y)) -> 1.0
-
-//      println(getProteinCountArgs(eventTok.begin, candBeginInd, sentence) + "    " + y)
-      feats += FeatureKey("protein mentions between start and end node of the argument edge", List(getProteinCountArgs(eventTok.begin, candBeginInd, sentence).toString(), y)) -> 1.0
-      //      didn't help
-      //      val hasNumberBeg = tokens(beg).word.matches("^[0-9]*$")
-      //      val hasNumberEnd = tokens(end).word.matches("^[0-9]*$")
-      //      val hasUpperCase = tokens(end).word.matches("^[A-Z]*$")
-      //      feats += FeatureKey("end has number", List(hasNumberBeg.toString, hasNumberEnd.toString, y)) -> 1.0
-      //      feats += FeatureKey(parent+"end has uppercase", List(hasUpperCase.toString, y)) -> 1.0
+      feats += FeatureKey("lexical feature based on pos argument", List(tokens(candBeginInd).pos, y)) -> 1.0
+      feats += FeatureKey("lexical feature based on pos event trigger candidate ", List(eventTok.pos,  y)) -> 1.0
+      feats += FeatureKey("lexical feature based on length of edge between cand trigger and cand arg", List(abs(eventTok.begin - candBeginInd).toString, y)) -> 1.0
+      feats += FeatureKey("lexical feature based on - event trigger token", List(eventTok.word.contains("-").toString, x.isProtein.toString, y)) -> 1.0
     }
     addArgsNGramPosFeaturesInPlace(feats,sentence.tokens, eventTok.index, y, 3)
     addArgsNGramPosFeaturesInPlace(feats,sentence.tokens, eventTok.index, y, 2)
     addArgsNGramPosFeaturesInPlace(feats,sentence.tokens, candBeginInd, y, 3)
-//    addArgsNGramPosFeaturesInPlace(feats,sentence.tokens, candBeginInd, y, 2)
-
-    //    addArgsPOSNGramPosFeaturesInPlace(feats,sentence.tokens, candBeginInd, y, 3)
-
-
-    //  add basic token features around candidate argument word
-    //    addBasicTokenFeaturesInPlace(feats, sentence.tokens.first)
-
-    //    //  add basic token features around candidate
-//        addBasicTokenFeaturesInPlace(feats, sentence.tokens, eventTok.index-1, y, "left token from candidate")
-    //    //    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd-2, y, "2 left token from candidate")
-    //    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd+1, y, "right token from candidate")
-    //    //    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd+1, y, "right token from candidate")
-    //
-    //    //  bigrams from candidate
-//        addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 2, "right token from candidate")
-//        addNGramPosFeaturesInPlace(feats, sentence.tokens, eventTok.index-1, y, 2, "right token from candidate")
-    //    //  threegrams from candidate
-//        addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 3, "right token from candidate")
-//        addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd-2, y, 3, "right token from candidate"
 
     feats
   }
@@ -349,6 +318,7 @@ object Features {
   def addArgumentEntityBasedFeaturesInPlace(x: Candidate, feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, eventTok: Token, y: Label) = {
     feats += FeatureKey("Number of prot mentions in candidate's sentence", List(sentence.mentions.size.toString, y)) -> 1.0
     feats += FeatureKey("is_protein first argument and stem of event token", List(x.isProtein.toString, eventTok.stem, y)) -> 1.0
+    feats += FeatureKey("protein mentions between argument cand and trigger cand", List(getProteinCountArgs(eventTok.begin, candBeginInd, sentence).toString(), y)) -> 1.0
   }
 
   def addArgsSyntaxBasedFeatures(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, eventTok: Token, x: Candidate, y: Label) = {

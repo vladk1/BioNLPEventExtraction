@@ -109,43 +109,43 @@ object Problem3Arguments {
 //    val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
     val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeatures)
 
-//    var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,10)
-//    // get predictions on dev
-//    var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
-//    // evaluate on dev
-//    var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
-//    println("Evaluation for argument classification:")
-//    println(argumentDevEval.toString)
+    var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,10)
+    // get predictions on dev
+    var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
+    // evaluate on dev
+    var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
+    println("Evaluation for argument classification:")
+    println(argumentDevEval.toString)
+
+    ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
+
+    // get predictions on test
+    var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
+    // write to file
+    Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
+
+//    var scores = new mutable.HashMap[Int, Double]()
 //
-//    ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
+//    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
+//    for(i<- 1 to 10){
+//      var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,i)
+//      // get predictions on dev
+//      var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
+//      // evaluate on dev
+//      var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
+//      println("Evaluation for argument classification:")
+//      println(argumentDevEval.averageF1.toString)
+//      scores.put(i,argumentDevEval.averageF1)
+////      ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
 //
-//    // get predictions on test
-//    var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
-//    // write to file
-//    Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
-
-    var scores = new mutable.HashMap[Int, Double]()
-
-    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
-    for(i<- 1 to 10){
-      var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,i)
-      // get predictions on dev
-      var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
-      // evaluate on dev
-      var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
-      println("Evaluation for argument classification:")
-      println(argumentDevEval.averageF1.toString)
-      scores.put(i,argumentDevEval.averageF1)
-//      ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
-
-      // get predictions on test
-      var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
-      // write to file
-      Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
-    }
-
-    println(scores)
-    println(scores.maxBy(_._2))
+//      // get predictions on test
+//      var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
+//      // write to file
+//      Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
+//    }
+//
+//    println(scores)
+//    println(scores.maxBy(_._2))
   }
 
 }
