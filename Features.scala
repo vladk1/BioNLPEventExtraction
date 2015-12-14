@@ -4,7 +4,6 @@ import breeze.numerics.abs
 import uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 /**
  * Created by Georgios on 05/11/2015.
@@ -96,11 +95,11 @@ object Features {
     //    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd+1, y, "right token from candidate")
 
     //  bigrams from candidate
-    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 2, "right token from candidate")
-    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd - 1, y, 2, "right token from candidate")
+    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 2, "bigram")
+    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd - 1, y, 2, "bigram")
     //  threegrams from candidate
-    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 3, "right token from candidate")
-    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd - 2, y, 3, "right token from candidate")
+    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, 3, "3gram")
+    addNGramPosFeaturesInPlace(feats, sentence.tokens, candBeginInd - 2, y, 3, "3gram")
 
 
     //  Since preposition heads are often indicators of temporal class, we created a new
@@ -125,10 +124,12 @@ object Features {
       //    part-of-speech tag: 98.7 per cent of trigger words are verbs, nouns or adjective
       feats += FeatureKey(parent + "bf pos", List(tokens(i).pos, y)) -> 1.0
 
+//      feats += FeatureKey(parent + "bf distance to the end of the sentence", List((tokens.size-i).toString, y)) -> 1.0
+
       //      didn't help
-      //      val hasNumber = tokens(i).word.matches("^[0-9]*$")
-      //      val hasUpperCase = tokens(i).word.matches("^[A-Z]*$")
-      //      feats += FeatureKey(parent+"bf number", List((hasNumber).toString, y)) -> 1.0
+//            val hasNumber = tokens(i).word.matches("^[0-9]*$")
+//            val hasUpperCase = tokens(i).word.matches("^[A-Z]*$")
+//            feats += FeatureKey(parent+"bf number", List((hasNumber&&hasUpperCase).toString, y)) -> 1.0
       //      feats += FeatureKey(parent+"bf uppercase", List(hasUpperCase.toString, y)) -> 1.0
     }
   }
@@ -180,6 +181,7 @@ object Features {
 
   def addEntityBasedFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, y: Label) = {
     val candSentenceMentions = sentence.mentions
+
     feats += FeatureKey("Number of protein mentions in candidate's sentence", List(candSentenceMentions.size.toString, y)) -> 1.0
 
     //    val noProteinMentions = candSentenceMentions.size == 0
@@ -222,49 +224,53 @@ object Features {
         dist
       }
     }).map(_.toString).filterNot(x => x == "()").map(_.toInt).toIndexedSeq
-    if (proteinDistsAroundCand.size > 0) proteinDistsAroundCand.min
+    if (proteinDistsAroundCand.size > 0) {
+      proteinDistsAroundCand.min
+    }
     else "-1"
   }
 
 
   def addSyntaxBasedFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int,x: Candidate, y: Label) = {
     val candSentenceDeps = sentence.deps
-    val candToken = sentence.tokens(candBeginInd)
 
     // model all syntactic dependency paths up to depth two
     // we extract token features the first and last token in these paths
     val depsMap = new mutable.HashMap[Int, List[(String, Int)]] withDefaultValue Nil
+    val depsReverseMap = new mutable.HashMap[Int, List[(String, Int)]] withDefaultValue Nil
     candSentenceDeps.foreach(dep => {
-      depsMap(dep.mod) ::=(dep.label, dep.head)
+      depsMap(dep.head) ::=(dep.label, dep.mod)
+      depsReverseMap(dep.mod) ::=(dep.label, dep.head)
     })
 
-    //    feats += FeatureKey("dependency map contains candidate", List(depsMap.contains(candBeginInd).toString, y)) -> 1.0
-
+    feats += FeatureKey("outgoing deps", List(depsMap.contains(candBeginInd).toString, y)) -> 1.0
     if (depsMap.contains(candBeginInd)) {
-        getAllPaths(1, y, feats, depsMap, sentence, candBeginInd, ArrayBuffer[String](), ArrayBuffer[String]());
+      jumpThroughAllPaths("depsMap", 2, y, feats, depsMap, sentence, candBeginInd, "", "", "")
     }
 
+    feats += FeatureKey("ingoing deps", List(depsReverseMap.contains(candBeginInd).toString, y)) -> 1.0
+    if (depsReverseMap.contains(candBeginInd)) {
+      jumpThroughAllPaths("depsReverseMap", 1, y, feats, depsReverseMap, sentence, candBeginInd, "", "", "")
+    }
   }
 
-  // My argument features
-  def getAllPaths(depth: Int,  y: Label, feats: mutable.HashMap[FeatureKey, Double], depsMap: mutable.Map[Int, List[(String, Int)]], sentence: Sentence, idx: Int, posPath: ArrayBuffer[String], edgeLabel: ArrayBuffer[String]): Unit = {
+  def jumpThroughAllPaths(parentType:String, depth: Int,  y: Label, feats: mutable.HashMap[FeatureKey, Double], depsMap: mutable.Map[Int, List[(String, Int)]], sentence: Sentence, idx: Int,
+                          posPath: String, edgeLabelPath: String, stemPath: String):Unit = {
 
-//    println("idx="+idx)
-//    println(sentence.tokens)
-
-    if (depsMap.contains(idx) && depth < 5) {
+    if (depsMap.contains(idx) && depth > 0) {
       depsMap(idx).foreach(dep => {
-        edgeLabel += dep._1
-        val token = sentence.tokens(idx)
-        posPath += token.pos
-        getAllPaths(depth +1 , y, feats, depsMap, sentence, dep._2, posPath, edgeLabel);
-        })
-      }
+        val newEdgeLabelPath = edgeLabelPath + " " + dep._1
 
-    else{
-      //add feature
-      feats += FeatureKey("syntactic dependency on edge labels", List(edgeLabel.toString(), posPath.toString(), y)) -> 1.0
-//      feats += FeatureKey("syntactic dependency on pos", List(posPath.toString(), y)) -> 1.0
+        val token = sentence.tokens(idx)
+        val newPosPath = posPath + " " + token.pos
+        val newStemPath = stemPath + " " + token.word
+
+        // achieve 0.4177
+        addBasicTokenFeaturesInPlace(feats, sentence.tokens, idx, y, parentType+"token depth="+depth)
+        feats += FeatureKey(parentType+"syntactic dependency on edge and pos through the path", List(newEdgeLabelPath, newPosPath, y)) -> 1.0
+
+        jumpThroughAllPaths(parentType, depth-1 , y, feats, depsMap, sentence, dep._2, newPosPath, newEdgeLabelPath, newStemPath)
+      })
     }
   }
 
