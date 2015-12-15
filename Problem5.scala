@@ -54,7 +54,7 @@ object Problem5{
     //TODO: change the features function to explore different types of features
     //TODO: experiment with the unconstrained and constrained (you need to implement the inner search) models
     val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
-    val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+//    val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
 
     // use training algorithm to get weights of model
     val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,10)
@@ -113,11 +113,11 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
 
     }
 
-//    def argmax(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
-//      val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
-//      scores.maxBy(_._2)._1
-//
-//    }
+    //    def argmax(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
+    //      val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
+    //      scores.maxBy(_._2)._1
+    //
+    //    }
 
     val bestTrigger = argmax(triggerLabels,x,weights,triggerFeature)
 
@@ -144,7 +144,7 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
         var count = 0
         for (arg <- x.arguments) {
           if (arg == themeScores.maxBy(_._2)._1) {
-//            println("updated at " + count)
+            //            println("updated at " + count)
             bestArguments = bestArguments.updated(count, "Theme")
           }
           count = count + 1
@@ -188,7 +188,6 @@ case class JointUnconstrainedClassifier(triggerLabels:Set[Label],
     val bestArguments = for (arg<-x.arguments) yield argmax(argumentLabels,arg,weights,argumentFeature)
     (bestTrigger,bestArguments)
   }
-
 }
 
 trait JointModel extends Model[Candidate,StructuredLabels]{

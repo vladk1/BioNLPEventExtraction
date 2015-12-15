@@ -43,7 +43,7 @@ object Problem3Triggers {
 
     // define model
     //TODO: change the features function to explore different types of features
-//    val triggerModel = SimpleClassifier(triggerLabels, Features.defaultTriggerFeatures)
+    //    val triggerModel = SimpleClassifier(triggerLabels, Features.defaultTriggerFeatures)
     val triggerModel = SimpleClassifier(triggerLabels, Features.myTriggerFeatures)
 
 
@@ -52,7 +52,7 @@ object Problem3Triggers {
     //    val triggerWeights = PrecompiledTrainers.trainNB(triggerTrain,triggerModel.feat)
     val triggerWeights = PrecompiledTrainers.trainPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 10)
 
-//    trick to print out weights with mention of word
+    //    trick to print out weights with mention of word
     val sortedWeights = ListMap(triggerWeights.toSeq.sortBy(_._2):_*)
     sortedWeights.foreach(weight => {
       if (weight._1.toString.contains("syntactic dependency")) {
@@ -70,10 +70,10 @@ object Problem3Triggers {
     println(triggerDevEval.toString)
 
     ErrorAnalysis(triggerDev.unzip._1,triggerDevGold,triggerDevPred).showErrors(5)
-//
-//    // get predictions on test
+    //
+    //    // get predictions on test
     val triggerTestPred = triggerTest.map { case (trigger, dummy) => triggerModel.predict(trigger, triggerWeights) }
-//    // write to file
+    //    // write to file
     Evaluation.toFile(triggerTestPred, "./data/assignment2/out/simple_trigger_test.txt")
   }
 }
@@ -112,10 +112,12 @@ object Problem3Arguments {
     val argumentLabels = argumentTrain.map(_._2).toSet
 
     // define model
-//    val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
+//        val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
     val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeatures)
+//    val argumentModelNB = SimpleClassifier(argumentLabels, Features.myArgumentFeaturesNB)
 
     var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,10)
+//    var argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
     // get predictions on dev
     var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
     // evaluate on dev
@@ -130,28 +132,28 @@ object Problem3Arguments {
     // write to file
     Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
 
-//    var scores = new mutable.HashMap[Int, Double]()
-//
-//    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
-//    for(i<- 1 to 10){
-//      var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,i)
-//      // get predictions on dev
-//      var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
-//      // evaluate on dev
-//      var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
-//      println("Evaluation for argument classification:")
-//      println(argumentDevEval.averageF1.toString)
-//      scores.put(i,argumentDevEval.averageF1)
-////      ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
-//
-//      // get predictions on test
-//      var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
-//      // write to file
-//      Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
-//    }
-//
-//    println(scores)
-//    println(scores.maxBy(_._2))
+    //    var scores = new mutable.HashMap[Int, Double]()
+    //
+    //    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
+    //    for(i<- 1 to 10){
+    //      var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,i)
+    //      // get predictions on dev
+    //      var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
+    //      // evaluate on dev
+    //      var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
+    //      println("Evaluation for argument classification:")
+    //      println(argumentDevEval.averageF1.toString)
+    //      scores.put(i,argumentDevEval.averageF1)
+    ////      ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
+    //
+    //      // get predictions on test
+    //      var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
+    //      // write to file
+    //      Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
+    //    }
+    //
+    //    println(scores)
+    //    println(scores.maxBy(_._2))
   }
 
 }
