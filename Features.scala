@@ -364,6 +364,34 @@ object Features {
     feats.toMap
   }
 
+
+  def myArgumentFeaturesNB(x: Candidate, y: Label): FeatureVector = {
+    //        println(x)
+    //        println(y)
+    val doc = x.doc
+    val begin = x.begin
+    val end = x.end
+    val sentence = doc.sentences(x.sentenceIndex)
+    val candSentenceMentions = sentence.mentions
+    val event = sentence.events(x.parentIndex) //use this to gain access to the parent event
+    val eventHeadToken = sentence.tokens(event.begin) //first token of event
+    val token = sentence.tokens(begin) //first word of argument
+    val tokens = sentence.tokens
+
+    val feats = new mutable.HashMap[FeatureKey, Double]
+
+    feats += FeatureKey("label bias", List(y)) -> 1.0
+    feats += FeatureKey("  lexical feature based on stem argument", List(tokens(begin).stem, y)) -> 1.0
+    feats += FeatureKey("lexical feature based on pos argument", List(tokens(begin).pos, y)) -> 1.0
+    feats += FeatureKey("lexical feature based on pos event trigger candidate ", List(eventHeadToken.pos,  y)) -> 1.0
+    feats += FeatureKey("lexical feature based on - event trigger token", List(eventHeadToken.word.contains("-").toString, x.isProtein.toString, y)) -> 1.0
+
+    addArgumentEntityBasedFeaturesInPlace(x, feats,sentence, begin, end, eventHeadToken, y);
+    addArgsSyntaxBasedFeatures(feats, sentence, eventHeadToken, x, y)
+
+    feats.toMap
+  }
+
   //  Argument lexical features
   def addArgumentLexicalFeatures(x:Candidate, feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, eventTok: Token, y: Label): mutable.HashMap[assignment2.FeatureKey, Double] = {
     val candToken = sentence.tokens(candBeginInd)

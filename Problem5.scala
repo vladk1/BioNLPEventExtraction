@@ -1,5 +1,8 @@
 package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
+
+import uk.ac.ucl.cs.mr.statnlpbook.assignment2._
+
 import scala.collection.mutable
 
 /**
@@ -50,11 +53,11 @@ object Problem5{
     // define model
     //TODO: change the features function to explore different types of features
     //TODO: experiment with the unconstrained and constrained (you need to implement the inner search) models
-    val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.defaultTriggerFeatures,Features.defaultArgumentFeatures)
-    //val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.defaultTriggerFeatures,Features.defaultArgumentFeatures)
+    val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+//    val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
 
     // use training algorithm to get weights of model
-    val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,2)
+    val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,10)
 
     // get predictions on dev
     val jointDevPred = jointDev.unzip._1.map { case e => jointModel.predict(e,jointWeights) }
@@ -104,7 +107,52 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
                                        ) extends JointModel {
   def predict(x: Candidate, weights: Weights) = {
     //TODO
-    ???
+    def argmax(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
+      val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
+      scores.maxBy(_._2)._1
+
+    }
+
+    //    def argmax(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
+    //      val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
+    //      scores.maxBy(_._2)._1
+    //
+    //    }
+
+    val bestTrigger = argmax(triggerLabels,x,weights,triggerFeature)
+
+    var bestArguments: Seq[Label] = List()
+
+    // Constraint 1 :  A trigger can only have arguments if its own label is not NONE
+    if (bestTrigger.toString == "None") {
+      bestArguments = for (arg<-x.arguments) yield "None"
+    }
+    // Constraint 2: Only regulation events can have CAUSE arguments
+    else if (bestTrigger.toString.contains("egulation")) {
+      bestArguments = for (arg<-x.arguments) yield argmax(argumentLabels,arg,weights,argumentFeature)
+    }
+    else {
+      bestArguments = for (arg<-x.arguments) yield argmax(argumentLabels.filter(_.toString != "Cause"),arg,weights,argumentFeature)
+    }
+    // Constraint 2: A trigger with a label other than NONE must have at least one THEME
+    if (bestTrigger.toString != "None") {
+      // check count of label "Theme"
+      if (bestArguments.count(_.toString == "Theme") == 0) {
+        // make map of highest feat score for "Theme"
+
+        val themeScores = x.arguments.toSeq.map(x => x -> dot(argumentFeature(x, argumentLabels.filterNot(_.toString() == "Theme").head), weights)).toMap withDefaultValue 0.0
+        var count = 0
+        for (arg <- x.arguments) {
+          if (arg == themeScores.maxBy(_._2)._1) {
+            //            println("updated at " + count)
+            bestArguments = bestArguments.updated(count, "Theme")
+          }
+          count = count + 1
+        }
+      }
+    }
+
+    (bestTrigger,bestArguments)
   }
 
 }
@@ -140,7 +188,6 @@ case class JointUnconstrainedClassifier(triggerLabels:Set[Label],
     val bestArguments = for (arg<-x.arguments) yield argmax(argumentLabels,arg,weights,argumentFeature)
     (bestTrigger,bestArguments)
   }
-
 }
 
 trait JointModel extends Model[Candidate,StructuredLabels]{
