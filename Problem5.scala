@@ -56,10 +56,10 @@ object Problem5{
     //TODO: change the features function to explore different types of features
     //TODO: experiment with the unconstrained and constrained (you need to implement the inner search) models
 //    val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
-    val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+    val jointModel = SimpleJointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
 
     // use training algorithm to get weights of model
-    val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,1)
+    val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,10)
 
     // get predictions on dev
     val jointDevPred = jointDev.unzip._1.map { case e => jointModel.predict(e,jointWeights) }
@@ -89,6 +89,82 @@ object Problem5{
     val argumentTestPred = jointTestPred.unzip._2.flatten
     // write to file
     Evaluation.toFile(argumentTestPred,"./data/assignment2/out/joint_argument_test.txt")
+  }
+}
+
+
+case class SimpleJointConstrainedClassifier(triggerLabels:Set[Label],
+                                      argumentLabels:Set[Label],
+                                      triggerFeature:(Candidate,Label)=>FeatureVector,
+                                      argumentFeature:(Candidate,Label)=>FeatureVector
+                                       ) extends JointModel {
+  def predict(x: Candidate, weights: Weights) = {
+    def argmax(labels: Set[Label], x: Candidate, weights: Weights, feat: (Candidate, Label) => FeatureVector) = {
+      val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
+      scores.maxBy(_._2)._1
+    }
+
+    var bestTrigger = argmax(triggerLabels, x, weights, triggerFeature)
+
+    var bestArguments: Seq[Label] = List()
+
+    // Constraint 1 :  A trigger can only have arguments if its own label is not NONE
+    if (bestTrigger.toString == "None") {
+      bestArguments = for (arg<-x.arguments) yield "None"
+    } else {
+      // Constraint 3: Only regulation events can have CAUSE arguments
+      if(bestTrigger.toString.contains("egulation")) {
+        bestArguments = for (arg<-x.arguments) yield argmax(argumentLabels,arg,weights,argumentFeature)
+      } else {
+        bestArguments = for (arg<-x.arguments) yield argmax(argumentLabels.filter(_.toString != "Cause"),arg,weights,argumentFeature)
+      }
+      // Constraint 2: A trigger with a label other than NONE must have at least one THEME
+      // check count of label "Theme"
+      if (bestArguments.count(_.toString == "Theme") == 0) {
+        // make map of highest feat score for "Theme"
+        var overallScore = new ArrayBuffer[Double]()
+        for (i <- 0 until x.arguments.size) {
+          val realArgScores = dot(argumentFeature(x.arguments(i), bestArguments(i)), weights)
+          val replacedThemeScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "Theme").head), weights)
+          val replacedCauseScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "Cause").head), weights)
+          val replacedNoneScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "None").head), weights)
+          //          println("realArgScores="+realArgScores+" ThemeScore="+replacedThemeScore
+          //            +" CauseScore="+replacedCauseScore+" NoneScore="+replacedNoneScore)
+          overallScore += replacedThemeScore - realArgScores
+        }
+        val maxScoreIndex = overallScore.zipWithIndex.max._2
+        bestArguments = bestArguments.updated(maxScoreIndex, "Theme")
+
+        //        val themeScores = x.arguments.map(x => x -> dot(argumentFeature(x, argumentLabels.filterNot(_.toString() == "Theme").head), weights)).toMap withDefaultValue 0.0
+        //        var count = 0
+        //
+        //          for (arg <- x.arguments) {
+        //            if (arg == themeScores.maxBy(_._2)._1 && count == 0) {
+        //              // println("updated at " + count)
+        //              bestArguments = bestArguments.updated(count, "Theme")
+        //            }
+        //            count = count + 1
+        //          }
+        //
+        //        var replacedTotalScore = 0.0
+        //        var totalScoreNone = 0.0
+        //
+        //        for (i <- 0 until x.arguments.size) {
+        //          replacedTotalScore += dot(argumentFeature(x.arguments(i), bestArguments(i)), weights)
+        //          totalScoreNone += dot(argumentFeature(x.arguments(i), "None"), weights)
+        //        }
+        //
+        //        val totalScoreReplace = dot(triggerFeature(x, bestTrigger), weights) + replacedTotalScore
+        //
+        //        totalScoreNone += dot(triggerFeature(x, "None"), weights)
+
+        //        if(totalScoreNone > totalScoreReplace){
+        //          bestTrigger = "None"
+        //          bestArguments.map(arg => "None")
+        //        }
+      }
+    }
+    (bestTrigger,bestArguments)
   }
 }
 
@@ -148,17 +224,11 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
       println(scoresMap)
     }
 
-
     var bestTriggers = getBestTriggerLabels(triggerLabels, x, weights, triggerFeature)
 
-    // compute the None score by default
-
     val trigCategMap = bestTriggers.toSeq.map(trig => trig -> triggerCategory(trig._1)).toMap
-//    println(trigCategMap)
     val uniqueCategories = trigCategMap.toSeq.map(trig => trig._2).toSet + 1
     val validArgLabels = uniqueCategories.map(cat => cat -> validLabels(cat)).toMap
-
-//    println(validArgLabels)
 
     validArgLabels.foreach(label => {
       buildScoreMatrix(label._2, x.arguments.toIndexedSeq, weights, argumentFeature); println("for category: " + label._1)
@@ -167,70 +237,9 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
 
 
 
-    var bestTrigger = argmax(triggerLabels, x, weights, triggerFeature)
-
-    var bestArguments: Seq[Label] = List()
-
-    // Constraint 1 :  A trigger can only have arguments if its own label is not NONE
-    if (bestTrigger.toString == "None") {
-      bestArguments = for (arg<-x.arguments) yield "None"
-    } else {
-      // Constraint 3: Only regulation events can have CAUSE arguments
-      if(bestTrigger.toString.contains("egulation")) {
-        bestArguments = for (arg<-x.arguments) yield argmax(argumentLabels,arg,weights,argumentFeature)
-      } else {
-        bestArguments = for (arg<-x.arguments) yield argmax(argumentLabels.filter(_.toString != "Cause"),arg,weights,argumentFeature)
-      }
-      // Constraint 2: A trigger with a label other than NONE must have at least one THEME
-      // check count of label "Theme"
-      if (bestArguments.count(_.toString == "Theme") == 0) {
-        // make map of highest feat score for "Theme"
-        var overallScore = new ArrayBuffer[Double]()
-        for (i <- 0 until x.arguments.size) {
-          val realArgScores = dot(argumentFeature(x.arguments(i), bestArguments(i)), weights)
-          val replacedThemeScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "Theme").head), weights)
-          val replacedCauseScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "Cause").head), weights)
-          val replacedNoneScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "None").head), weights)
-//          println("realArgScores="+realArgScores+" ThemeScore="+replacedThemeScore
-//            +" CauseScore="+replacedCauseScore+" NoneScore="+replacedNoneScore)
-          overallScore += replacedThemeScore - realArgScores
-        }
-        val maxScoreIndex = overallScore.zipWithIndex.max._2
-        bestArguments = bestArguments.updated(maxScoreIndex, "Theme")
-
-//        val themeScores = x.arguments.map(x => x -> dot(argumentFeature(x, argumentLabels.filterNot(_.toString() == "Theme").head), weights)).toMap withDefaultValue 0.0
-//        var count = 0
-//
-//          for (arg <- x.arguments) {
-//            if (arg == themeScores.maxBy(_._2)._1 && count == 0) {
-//              // println("updated at " + count)
-//              bestArguments = bestArguments.updated(count, "Theme")
-//            }
-//            count = count + 1
-//          }
-//
-//        var replacedTotalScore = 0.0
-//        var totalScoreNone = 0.0
-//
-//        for (i <- 0 until x.arguments.size) {
-//          replacedTotalScore += dot(argumentFeature(x.arguments(i), bestArguments(i)), weights)
-//          totalScoreNone += dot(argumentFeature(x.arguments(i), "None"), weights)
-//        }
-//
-//        val totalScoreReplace = dot(triggerFeature(x, bestTrigger), weights) + replacedTotalScore
-//
-//        totalScoreNone += dot(triggerFeature(x, "None"), weights)
-
-//        if(totalScoreNone > totalScoreReplace){
-//          bestTrigger = "None"
-//          bestArguments.map(arg => "None")
-//        }
-      }
-    }
-    (bestTrigger,bestArguments)
+    // at the end return the best trigger label and the best argument labels
+    (bestTriggers.head._1, List())
   }
-
-
 }
 
 
