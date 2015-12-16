@@ -1,8 +1,6 @@
 package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
 
-import uk.ac.ucl.cs.mr.statnlpbook.assignment2._
-
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -56,7 +54,7 @@ object Problem5{
     //TODO: change the features function to explore different types of features
     //TODO: experiment with the unconstrained and constrained (you need to implement the inner search) models
 //    val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
-    val jointModel = SimpleJointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+    val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
 
     // use training algorithm to get weights of model
     val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,10)
@@ -182,6 +180,7 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
                                       triggerFeature:(Candidate,Label)=>FeatureVector,
                                       argumentFeature:(Candidate,Label)=>FeatureVector
                                        ) extends JointModel {
+
   def predict(x: Candidate, weights: Weights) = {
     //TODO
     def argmax(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
@@ -204,43 +203,101 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
 
     def validLabels(category: Int):Seq[String] = category match {
       case 1 => List("None")
-      case 2 => List("Theme, Cause, None")
-      case 3 => List("Theme, None")
+      case 2 => List("None", "Theme", "Cause") // has to have theme
+      case 3 => List("None", "Theme") // has to have theme
     }
 
 //    def initMatrix (nRows: Int, nCols: Int) = Array.tabulate(nRows,nCols)( (x,y) => 0f )
 
-    def buildScoreMatrix(possibleLabels: Seq[Label], x: IndexedSeq[Candidate], weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
-
-      val possibLab = possibleLabels.toIndexedSeq
-
-      var scoresMap = new mutable.HashMap[(Int,Int), Double]()
+    def buildScoreMatrix(possibleLabels: IndexedSeq[Label], x: IndexedSeq[Candidate], weights: Weights, feat:(Candidate,Label)=>FeatureVector):Map[(String, Int), Double] = {
+      val scoresMap = new mutable.HashMap[(String, Int), Double]()
 
       for(i<- 0 until possibleLabels.size) {
         for(j<- 0 until x.size) {
-          scoresMap.put((i,j),dot(feat(x(j), possibLab(i)), weights))
+          scoresMap.put((possibleLabels(i),j),dot(feat(x(j), possibleLabels(i)), weights))
         }
       }
-      println(scoresMap)
+      scoresMap.toMap
     }
 
-    var bestTriggers = getBestTriggerLabels(triggerLabels, x, weights, triggerFeature)
+    val bestTriggers = getBestTriggerLabels(triggerLabels, x, weights, triggerFeature)
+    val trigCategMap = bestTriggers.toSeq.map(trig => trig -> triggerCategory(trig._1)).toMap // to use
 
-    val trigCategMap = bestTriggers.toSeq.map(trig => trig -> triggerCategory(trig._1)).toMap
-    val uniqueCategories = trigCategMap.toSeq.map(trig => trig._2).toSet + 1
+    val uniqueCategories = trigCategMap.toSeq.map(trig => trig._2).toSet // we can add default category here e.g. None + 1
     val validArgLabels = uniqueCategories.map(cat => cat -> validLabels(cat)).toMap
 
-    validArgLabels.foreach(label => {
-      buildScoreMatrix(label._2, x.arguments.toIndexedSeq, weights, argumentFeature); println("for category: " + label._1)
+
+    val catValidScorePath = validArgLabels.map(argLabelType => {
+      if (argLabelType._1 != 1) {
+        val scoreMap = buildScoreMatrix(argLabelType._2.toIndexedSeq, x.arguments.toIndexedSeq, weights, argumentFeature)
+        val validScorePaths = mutable.MutableList[(List[(String, Int)], Double)]()
+        scorePathsInPlace(scoreMap, (List(), 0.0), validScorePaths, hasTheme = false, 0, x.arguments.size, argLabelType._2.toIndexedSeq)
+
+//        validScorePaths.foreach(path => {
+//          println(path)
+//        })
+
+        if (validScorePaths.size == 0) {
+          println("Empty validScorePaths")
+        }
+        val bestValidScorePath = validScorePaths.maxBy(_._2)
+        (argLabelType._1, bestValidScorePath)
+      } else {
+        var score = 0.0
+        var path = List[(String, Int)]()
+        for (i <- 0 until x.arguments.size) {
+          score += dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "None").head), weights)
+          path = ("None", i) :: path
+        }
+        (argLabelType._1, (path, score))
+      }
     })
 
+    val bestOverall = trigCategMap.map(trigger => {
+       val triggerScore = trigger._1._2
+//       println("triggerLabel="+trigger._1._1 + " score="+triggerScore)
+       val args = catValidScorePath(trigger._2)
+       val argsScore = args._2
+       val totalScore = triggerScore + argsScore
+//      trigger label, argspath, total score
+       ((trigger._1._1, args._1), totalScore)
+    })
 
+    val best = bestOverall.maxBy(_._2)
+    if (best._1._1.toString == "None") {
+      println("None")
+    } else {
+      println(best)
+    }
+
+
+//    val scorePaths = produceScorePath(globalScoreMaps, List())
 
 
     // at the end return the best trigger label and the best argument labels
     (bestTriggers.head._1, List())
   }
+
+
+  def scorePathsInPlace(maps: Map[(String, Int), Double], pathsScore:(List[(String, Int)],Double), finalValidScorePath:mutable.MutableList[(List[(String, Int)],Double)],
+                       hasTheme: Boolean, curArgInd:Int, maxArgInd:Int, possibleLabels: IndexedSeq[Label]):Unit = {
+    val maxLabelInd = possibleLabels.size
+    if (curArgInd<maxArgInd) {
+      for (labelInd <- 0 until maxLabelInd) {
+        val curLabel = possibleLabels(labelInd)
+        val newScore = pathsScore._2 + maps(curLabel, curArgInd)
+        val newPath = (curLabel, curArgInd) :: pathsScore._1
+        scorePathsInPlace(maps, (newPath, newScore), finalValidScorePath, curLabel.contains("Theme") || hasTheme,
+          curArgInd+1, maxArgInd, possibleLabels)
+      }
+    } else {
+      //base case
+      if (hasTheme) finalValidScorePath += pathsScore
+    }
+  }
+
 }
+
 
 
 
