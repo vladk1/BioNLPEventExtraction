@@ -3,6 +3,7 @@ package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
 import uk.ac.ucl.cs.mr.statnlpbook.assignment2._
 
+import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -58,7 +59,7 @@ object Problem5{
     val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
 
     // use training algorithm to get weights of model
-    val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,10)
+    val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,1)
 
     // get predictions on dev
     val jointDevPred = jointDev.unzip._1.map { case e => jointModel.predict(e,jointWeights) }
@@ -89,7 +90,6 @@ object Problem5{
     // write to file
     Evaluation.toFile(argumentTestPred,"./data/assignment2/out/joint_argument_test.txt")
   }
-
 }
 
 /**
@@ -112,6 +112,60 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
       val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
       scores.maxBy(_._2)._1
     }
+
+    def getBestTriggerLabels(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
+      val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
+      val sortedSc = ListMap(scores.toSeq.sortBy(_._2):_*)
+      sortedSc.drop(sortedSc.size - 3)
+    }
+
+    // there are 3 categories: I -> None, II -> Regulations, III -> Rest of labels for triggers
+    def triggerCategory(label: Label): Int = label match {
+      case "None" => 1
+      case "Regulation" | "Positive_regulation" | "Negative_regulation" => 2
+      case _ => 3
+    }
+
+    def validLabels(category: Int):Seq[String] = category match {
+      case 1 => List("None")
+      case 2 => List("Theme, Cause, None")
+      case 3 => List("Theme, None")
+    }
+
+//    def initMatrix (nRows: Int, nCols: Int) = Array.tabulate(nRows,nCols)( (x,y) => 0f )
+
+    def buildScoreMatrix(possibleLabels: Seq[Label], x: IndexedSeq[Candidate], weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
+
+      val possibLab = possibleLabels.toIndexedSeq
+
+      var scoresMap = new mutable.HashMap[(Int,Int), Double]()
+
+      for(i<- 0 until possibleLabels.size) {
+        for(j<- 0 until x.size) {
+          scoresMap.put((i,j),dot(feat(x(j), possibLab(i)), weights))
+        }
+      }
+      println(scoresMap)
+    }
+
+
+    var bestTriggers = getBestTriggerLabels(triggerLabels, x, weights, triggerFeature)
+
+    // compute the None score by default
+
+    val trigCategMap = bestTriggers.toSeq.map(trig => trig -> triggerCategory(trig._1)).toMap
+//    println(trigCategMap)
+    val uniqueCategories = trigCategMap.toSeq.map(trig => trig._2).toSet + 1
+    val validArgLabels = uniqueCategories.map(cat => cat -> validLabels(cat)).toMap
+
+//    println(validArgLabels)
+
+    validArgLabels.foreach(label => {
+      buildScoreMatrix(label._2, x.arguments.toIndexedSeq, weights, argumentFeature); println("for category: " + label._1)
+    })
+
+
+
 
     var bestTrigger = argmax(triggerLabels, x, weights, triggerFeature)
 
@@ -175,7 +229,11 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
     }
     (bestTrigger,bestArguments)
   }
+
+
 }
+
+
 
 /**
  * A joint event classifier (both triggers and arguments).

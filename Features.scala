@@ -61,107 +61,7 @@ object Features {
   //    })
 
 
-  def myNBTriggerFeatures(x: Candidate, y: Label): FeatureVector = {
-    val doc = x.doc
-    val begin = x.begin
-    val end = x.end
-    val sentence = doc.sentences(x.sentenceIndex) //use this to gain access to the parent sentence
-    val feats = new mutable.HashMap[FeatureKey, Double]
-
-    val candBeginInd = x.begin
-    val candEndInd = x.end
-    val candToken = sentence.tokens(candBeginInd)
-
-
-    // 1)   0.2531
-    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, "candidate token")
-
-//      add basic token features around candidate
-//    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd - 1, y, "left token from candidate")
-//    addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd + 1, y, "right token from candidate")
-
-//  Since preposition heads are often indicators of temporal class, we created a new
-//  feature indicating when an event is part of a prepositional phrase. IN=preposition
-    val isPreposition = candToken.pos != "IN"
-//    feats += FeatureKey("is preposition feature", List(isPreposition.toString, y)) -> 1.0
-
-    //  bigrams from candidate
-//    addNGramBasicFeaturesInPlace(feats, sentence, candBeginInd-2, y, 2, "bigram")
-//    addNGramBasicFeaturesInPlace(feats, sentence, candBeginInd - 1, y, 2, "bigram")
-    //  threegrams from candidate
-//    addNGramBasicFeaturesInPlace(feats, sentence, candBeginInd, y, 3, "3gram")
-    //  addNGramBasicFeaturesInPlace(feats, sentence, candBeginInd - 1, y, 3, "3gram") // already described by features around candidate
-//    addNGramBasicFeaturesInPlace(feats, sentence, candBeginInd - 2, y, 3, "3gram")
-
-
-    val candSentenceMentions = sentence.mentions
-    val nearestProteinDist = getNearestDistanceProtein(candSentenceMentions, candBeginInd, toRight = true, toLeft = true)
-// 2)   0.2788, 0.28167 with 5)
-    feats += FeatureKey("Nearest protein distance", List(nearestProteinDist.toString, y)) -> 1.0
-
-    val nearestProteinDistToRight = getNearestDistanceProtein(candSentenceMentions, candBeginInd, toRight = true, toLeft = false)
-// 3)   0.2775 1) 2)
-//    feats += FeatureKey("Nearest protein distance to right", List(nearestProteinDistToRight.toString, y)) -> 1.0
-
-    val nearestProteinDistToLeft = getNearestDistanceProtein(candSentenceMentions, candBeginInd, toRight = false, toLeft = true)
-// 4)   0.2715 1) 2) 3)
-//   feats += FeatureKey("Nearest protein distance to left", List(nearestProteinDistToLeft.toString, y)) -> 1.0
-
-// 5)   0.2806 without all other mention features
-    feats += FeatureKey("Number of protein mentions in candidate's sentence", List(candSentenceMentions.size.toString, y)) -> 1.0
-
-    val candSentenceDeps = sentence.deps
-    // model all syntactic dependency paths up to depth two
-    // we extract token features the first and last token in these paths
-    val depsMap = new mutable.HashMap[Int, List[(String, Int)]] withDefaultValue Nil
-    val depsReverseMap = new mutable.HashMap[Int, List[(String, Int)]] withDefaultValue Nil
-    candSentenceDeps.foreach(dep => {
-      depsMap(dep.head) ::=(dep.label, dep.mod)
-      depsReverseMap(dep.mod) ::=(dep.label, dep.head)
-    })
-//    0.2853
-    feats += FeatureKey("outgoing deps", List(depsMap.contains(candBeginInd).toString, y)) -> 1.0
-    if (depsMap.contains(candBeginInd)) {
-      jumpThroughAllPathsNB("depsMap", 2, y, feats, depsMap, sentence, candBeginInd, "", "", "")
-    }
-//    feats += FeatureKey("ingoing deps", List(depsReverseMap.contains(candBeginInd).toString, y)) -> 1.0
-    if (depsReverseMap.contains(candBeginInd)) {
-      jumpThroughAllPathsNB("depsReverseMap", 1, y, feats, depsReverseMap, sentence, candBeginInd, "", "", "")
-    }
-
-    feats.toMap
-  }
-  def jumpThroughAllPathsNB(parentType:String, depth: Int,  y: Label, feats: mutable.HashMap[FeatureKey, Double], depsMap: mutable.Map[Int, List[(String, Int)]], sentence: Sentence, idx: Int,
-                          posPath: String, edgeLabelPath: String, stemPath: String):Unit = {
-
-    if (depsMap.contains(idx) && depth > 0) {
-      depsMap(idx).foreach(dep => {
-        val newEdgeLabelPath = edgeLabelPath + " " + dep._1
-
-        val token = sentence.tokens(idx)
-        val newPosPath = posPath + " " + token.pos
-
-        var newStemPath = "" // NOT USING STEM FOR NOW
-        if (sentence.mentions.filter(m => m.label.contains("Protein")).map(_.begin).contains(idx)) {
-          newStemPath = stemPath + " " + "[Protein]"
-        } else {
-          newStemPath = stemPath + " " + token.stem
-        }
-
-//        feats += FeatureKey(parentType+"syntactic dependency on edge ugh the path", List(edgeLabelPath, newStemPath, y)) -> 1.0
-//        feats += FeatureKey(parentType+"syntactic dependency on edge and pos through the path", List(edgeLabelPath, newPosPath, y)) -> 1.0
-//        feats += FeatureKey(parentType+"syntactic dependency on edge and pos path", List(newPosPath, y)) -> 1.0
-
-//        addBasicTokenFeaturesInPlace(feats, sentence.tokens, idx, y, parentType+"syntactic dependency token depth="+depth)
-//        feats += FeatureKey(parentType+"syntactic dependency on edge and pos through the path", List(newEdgeLabelPath, newPosPath, y)) -> 1.0
-//        feats += FeatureKey(parentType+"syntactic dependency on edge and stem through the path", List(newEdgeLabelPath, newStemPath, y)) -> 1.0
-
-        jumpThroughAllPathsNB(parentType, depth-1 , y, feats, depsMap, sentence, dep._2, newPosPath, newEdgeLabelPath, newStemPath)
-      })
-    }
-  }
-
-
+  //TODO: make your own feature functions
   def myTriggerFeatures(x: Candidate, y: Label): FeatureVector = {
     val doc = x.doc
     val begin = x.begin
@@ -172,7 +72,7 @@ object Features {
     feats += FeatureKey("label bias", List(y)) -> 1.0 //bias feature
 
     // tokens
-    addLexicalFeaturesInPlace(doc, feats, thisSentence, x, y)
+    addLexicalFeaturesInPlace(feats, thisSentence, begin, end, y)
 
     // mentions
     addEntityBasedFeaturesInPlace(feats, thisSentence, begin, end, y)
@@ -183,9 +83,7 @@ object Features {
     feats.toMap
   }
 
-  def addLexicalFeaturesInPlace(doc:Document, feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, x: Candidate, y: Label): mutable.HashMap[assignment2.FeatureKey, Double] = {
-    val candBeginInd = x.begin
-    val candEndInd = x.end
+  def addLexicalFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, y: Label): mutable.HashMap[assignment2.FeatureKey, Double] = {
     val candToken = sentence.tokens(candBeginInd)
 
     addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, "candidate token")
@@ -203,6 +101,7 @@ object Features {
     addNGramBasicFeaturesInPlace(feats, sentence, candBeginInd, y, 3, "3gram")
     //  addNGramBasicFeaturesInPlace(feats, sentence, candBeginInd - 1, y, 3, "3gram") // already described by features around candidate
     addNGramBasicFeaturesInPlace(feats, sentence, candBeginInd - 2, y, 3, "3gram")
+
 
     //  Since preposition heads are often indicators of temporal class, we created a new
     //  feature indicating when an event is part of a prepositional phrase. IN=preposition
