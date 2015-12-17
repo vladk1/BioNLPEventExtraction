@@ -52,12 +52,15 @@ object Problem5{
     //TODO: change the features function to explore different types of features
     //TODO: experiment with the unconstrained and constrained (you need to implement the inner search) models
 //    val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
-    val jointModel = SimpleJointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
-//    val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+    val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+//    val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.defaultTriggerFeatures,Features.defaultArgumentFeatures)
+//    val jointModel = SimpleJointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+
 
     // use training algorithm to get weights of model
     val jointWeights = PrecompiledTrainers.trainPerceptron(jointTrain,jointModel.feat,jointModel.predict,10)
 
+    println("get prediction on dev")
     // get predictions on dev
     val jointDevPred = jointDev.unzip._1.map { case e => jointModel.predict(e,jointWeights) }
     val jointDevGold = jointDev.unzip._2
@@ -125,8 +128,8 @@ case class SimpleJointConstrainedClassifier(triggerLabels:Set[Label],
           val replacedThemeScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "Theme").head), weights)
           val replacedCauseScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "Cause").head), weights)
           val replacedNoneScore = dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "None").head), weights)
-          //          println("realArgScores="+realArgScores+" ThemeScore="+replacedThemeScore
-          //            +" CauseScore="+replacedCauseScore+" NoneScore="+replacedNoneScore)
+          println("realArgScores="+realArgScores+" ThemeScore="+replacedThemeScore
+            +" CauseScore="+replacedCauseScore+" NoneScore="+replacedNoneScore)
           overallScore += replacedThemeScore - realArgScores
         }
         val maxScoreIndex = overallScore.zipWithIndex.max._2
@@ -174,22 +177,30 @@ case class SimpleJointConstrainedClassifier(triggerLabels:Set[Label],
  * @param triggerFeature
  * @param argumentFeature
  */
+
 case class JointConstrainedClassifier(triggerLabels:Set[Label],
                                       argumentLabels:Set[Label],
                                       triggerFeature:(Candidate,Label)=>FeatureVector,
                                       argumentFeature:(Candidate,Label)=>FeatureVector
                                        ) extends JointModel {
   def predict(x: Candidate, weights: Weights) = {
-    //TODO
-    def argmax(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
-      val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
-      scores.maxBy(_._2)._1
-    }
-
+    // gets best trigger labels for each category
     def getBestTriggerLabels(labels: Set[Label], x: Candidate, weights: Weights, feat:(Candidate,Label)=>FeatureVector) = {
       val scores = labels.toSeq.map(y => y -> dot(feat(x, y), weights)).toMap withDefaultValue 0.0
       val sortedSc = ListMap(scores.toSeq.sortBy(_._2):_*)
-      sortedSc.drop(sortedSc.size - 3)
+
+      // gives tr=0.3686 arg=0.3258, when checking 3 most predicted words
+      sortedSc.drop(sortedSc.size - 4)
+
+//      TODO selecting best trigger from each category didn't help : (
+//      val bestFromTriggerCategList = mutable.MutableList[(Label, Double)]()
+//      for (i <- 1 to 3) {
+//        val bestListForCateg = sortedSc.filter(label => triggerCategory(label._1) == i)
+//        if (bestListForCateg.size > 0) {
+//          bestFromTriggerCategList += bestListForCateg.last
+//        }
+//      }
+//      bestFromTriggerCategList
     }
 
     // there are 3 categories: I -> None, II -> Regulations, III -> Rest of labels for triggers
@@ -201,19 +212,8 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
 
     def validLabels(category: Int):Seq[String] = category match {
       case 1 => List("None")
-      case 2 => List("None", "Theme", "Cause") // has to have theme
-      case 3 => List("None", "Theme") // has to have theme
-    }
-
-    def buildScoreMatrix(possibleLabels: IndexedSeq[Label], x: IndexedSeq[Candidate], weights: Weights, feat:(Candidate,Label)=>FeatureVector):Map[(String, Int), Double] = {
-      val scoresMap = new mutable.HashMap[(String, Int), Double]()
-
-      for(i<- 0 until possibleLabels.size) {
-        for(j<- 0 until x.size) {
-          scoresMap.put((possibleLabels(i),j),dot(feat(x(j), possibleLabels(i)), weights))
-        }
-      }
-      scoresMap.toMap
+      case 2 => List("None", "Theme", "Cause") // has to have at least one theme and the only one which can have cause
+      case 3 => List("None", "Theme") // has to have at least one theme
     }
 
     val bestTriggers = getBestTriggerLabels(triggerLabels, x, weights, triggerFeature)
@@ -222,22 +222,12 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
     val uniqueCategories = trigCategMap.toSeq.map(trig => trig._2).toSet // we can add default category here e.g. None + 1
     val validArgLabels = uniqueCategories.map(cat => cat -> validLabels(cat)).toMap
 
-
     val catValidScorePath = validArgLabels.map(argLabelType => {
       if (argLabelType._1 != 1) {
-        val scoreMap = buildScoreMatrix(argLabelType._2.toIndexedSeq, x.arguments.toIndexedSeq, weights, argumentFeature)
         val validScorePaths = mutable.MutableList[(List[(String, Int)], Double)]()
-        scorePathsInPlace(scoreMap, (List(), 0.0), validScorePaths, hasTheme = false, 0, x.arguments.size, argLabelType._2.toIndexedSeq)
-
-//        validScorePaths.foreach(path => {
-//          println(path)
-//        })
-
-        if (validScorePaths.size == 0) {
-          println("Empty validScorePaths")
-        }
+        scorePathsInPlace(x.arguments.toIndexedSeq, weights,argumentFeature, (List(), 0.0), validScorePaths, hasTheme = false, 0, x.arguments.size, argLabelType._2.toIndexedSeq)
         val bestValidScorePath = validScorePaths.maxBy(_._2)
-        (argLabelType._1, bestValidScorePath)
+        ((argLabelType._1, bestValidScorePath._1), bestValidScorePath._2)
       } else {
         var score = 0.0
         var path = List[(String, Int)]()
@@ -245,51 +235,48 @@ case class JointConstrainedClassifier(triggerLabels:Set[Label],
           score += dot(argumentFeature(x.arguments(i), argumentLabels.filter(_.toString == "None").head), weights)
           path = ("None", i) :: path
         }
-        (argLabelType._1, (path, score))
+        ((argLabelType._1, path), score)
       }
     })
-
     val bestOverall = trigCategMap.map(trigger => {
        val triggerScore = trigger._1._2
-//       println("triggerLabel="+trigger._1._1 + " score="+triggerScore)
-       val args = catValidScorePath(trigger._2)
-       val argsScore = args._2
-       val totalScore = triggerScore + argsScore
-//      trigger label, argspath, total score
-       ((trigger._1._1, args._1), totalScore)
+       val triggerType = trigger._2
+       val bestArgsForTrigger = catValidScorePath.filter(_._1._1==triggerType).maxBy(_._2)
+       val totalScore = triggerScore + bestArgsForTrigger._2
+       ((trigger._1._1, bestArgsForTrigger._1._2), totalScore)
     })
-
     val best = bestOverall.maxBy(_._2)
-    if (best._1._1.toString == "None") {
-      println("None")
-    } else {
-      println(best)
-    }
-
-//    val scorePaths = produceScorePath(globalScoreMaps, List())
-
-    // at the end return the best trigger label and the best argument labels
-    (bestTriggers.head._1, List())
+    (best._1._1, best._1._2.sortBy(_._2).map(pathitem => pathitem._1))
   }
 
 
-  def scorePathsInPlace(maps: Map[(String, Int), Double], pathsScore:(List[(String, Int)],Double), finalValidScorePath:mutable.MutableList[(List[(String, Int)],Double)],
+  def scorePathsInPlace(args: IndexedSeq[Candidate], weights: Weights, feat:(Candidate,Label)=>FeatureVector, pathToScoreMap:(List[(String, Int)],Double), finalValidScorePath:mutable.MutableList[(List[(String, Int)],Double)],
                        hasTheme: Boolean, curArgInd:Int, maxArgInd:Int, possibleLabels: IndexedSeq[Label]):Unit = {
-    val maxLabelInd = possibleLabels.size
     if (curArgInd<maxArgInd) {
-      for (labelInd <- 0 until maxLabelInd) {
-        val curLabel = possibleLabels(labelInd)
-        val newScore = pathsScore._2 + maps(curLabel, curArgInd)
-        val newPath = (curLabel, curArgInd) :: pathsScore._1
-        scorePathsInPlace(maps, (newPath, newScore), finalValidScorePath, curLabel.contains("Theme") || hasTheme,
-          curArgInd+1, maxArgInd, possibleLabels)
+      val labelCandMap = possibleLabels.map(curLabel => {
+        val newScore = pathToScoreMap._2 + dot(feat(args(curArgInd), curLabel), weights)
+        val newPath = (curLabel, curArgInd) :: pathToScoreMap._1
+        ((newPath, newScore), curLabel.contains("Theme") || hasTheme)
+      })
+      // Main change is that we are not interested in arguments that are not max
+      // because arguments are independent, and there is no way those which are not max, won't ever be max
+      // => hence not that exhastive
+
+      // always continue with max valid candidate
+      val maxValidCand = labelCandMap.filter(_._2).maxBy(_._1._2)
+      scorePathsInPlace(args, weights, feat, maxValidCand._1, finalValidScorePath, maxValidCand._2, curArgInd + 1, maxArgInd, possibleLabels)
+
+      val maxCand = labelCandMap.maxBy(_._1._2)
+      // if not valid path has bigger score, it might be valid in future, so continue this path
+      if (maxCand._1._2 > maxValidCand._1._2) {
+        scorePathsInPlace(args, weights, feat, maxCand._1, finalValidScorePath, maxCand._2, curArgInd + 1, maxArgInd, possibleLabels)
       }
+
     } else {
       //base case
-      if (hasTheme) finalValidScorePath += pathsScore
+      if (hasTheme) finalValidScorePath += pathToScoreMap
     }
   }
-
 }
 
 /**
