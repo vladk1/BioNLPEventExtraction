@@ -54,6 +54,12 @@ object Features {
     feats.toMap
   }
 
+  val helperHashMap = new mutable.HashMap[(String, Int), Int] withDefaultValue 0
+  //    val sortedDepss = ListMap(helperHashMap.toSeq.sortWith(_._2>_._2):_*)
+  //    helperHashMap.foreach(dep => {
+  //      println(dep)
+  //    })
+
   //TODO: make your own feature functions
   def myTriggerFeatures(x: Candidate, y: Label): FeatureVector = {
     val doc = x.doc
@@ -70,7 +76,6 @@ object Features {
     addEntityBasedFeaturesInPlace(feats, thisSentence, begin, end, y)
     // dependencies
 //    addSyntaxBasedFeaturesInPlace(feats, thisSentence, begin, end, x, y)
-
     feats.toMap
   }
 
@@ -106,6 +111,7 @@ object Features {
 
   def addBasicTokenFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], tokens: IndexedSeq[Token], i: Int, y: Label, parent: String) = {
     if (i >= 0 && tokens.size > i) {
+//      if (sentence.mentions.filter(m=> m.label.contains("Protein")).map(_.begin).contains(i)) {// Protein case
       //    lexical string: helps to count general occurrence of particular word as event trigger
       feats += FeatureKey(parent + " bf lexical string", List(tokens(i).word, y)) -> 1.0
       //    stem: helps to count general occurrence of particular modification of word as event trigger (e.g. activate, activates, activating)
@@ -219,9 +225,10 @@ object Features {
         }
 
         // achieve 0.4177
-//        addBasicTokenFeaturesInPlace(feats, sentence.tokens, idx, y, parentType+"syntactic dependency token depth="+depth)
+        addBasicTokenFeaturesInPlace(feats, sentence.tokens, idx, y, parentType+"syntactic dependency token depth="+depth)
         feats += FeatureKey(parentType+"syntactic dependency on edge and pos through the path", List(newEdgeLabelPath, newPosPath, y)) -> 1.0
-        feats += FeatureKey(parentType+"syntactic dependency on edge and stem through the path", List(newEdgeLabelPath, newStemPath, y)) -> 1.0
+//        feats += FeatureKey(parentType+"syntactic dependency on edge and stem through the path", List(newEdgeLabelPath, newStemPath, y)) -> 1.0
+
         jumpThroughAllPaths(parentType, depth-1 , y, feats, depsMap, sentence, dep._2, newPosPath, newEdgeLabelPath, newStemPath)
       })
     }
@@ -238,7 +245,6 @@ object Features {
     val token = sentence.tokens(begin) //first word of argument
 
     val feats = new mutable.HashMap[FeatureKey, Double]
-
     feats += FeatureKey("label bias", List(y)) -> 1.0
 
     addArgumentLexicalFeatures(x, feats, sentence, begin, end, eventHeadToken, y);
@@ -256,6 +262,8 @@ object Features {
     val sentence = doc.sentences(x.sentenceIndex)
     val event = sentence.events(x.parentIndex) //use this to gain access to the parent event
     val eventHeadToken = sentence.tokens(event.begin) //first token of event
+    val candSentenceMentions = sentence.mentions
+    val token = sentence.tokens(begin) //first word of argument
     val tokens = sentence.tokens
 
     val feats = new mutable.HashMap[FeatureKey, Double]
@@ -284,6 +292,7 @@ object Features {
       feats += FeatureKey("  lexical feature based on stem argument", List(tokens(candBeginInd).stem, y)) -> 1.0
       //    part-of-speech tag: 98.7 per cent of trigger words are verbs, nouns or adjective
       feats += FeatureKey("lexical feature based on pos argument", List(tokens(candBeginInd).pos, y)) -> 1.0
+
 //      feats += FeatureKey("lexical feature based on pos event trigger candidate ", List(eventTok.pos,  y)) -> 1.0
 //      feats += FeatureKey("lexical feature based on length of edge between cand trigger and cand arg", List(abs(eventTok.index - candBeginInd).toString, y)) -> 1.0
 
@@ -297,7 +306,7 @@ object Features {
   }
 
   def addArgumentEntityBasedFeaturesInPlace(x: Candidate, feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, eventTok: Token, y: Label) = {
-//    feats += FeatureKey("Number of protein mentions in candidate's sentence", List(sentence.mentions.size.toString, y)) -> 1.0
+//    feats += FeatureKey("Number of prot mentions in candidate's sentence", List(sentence.mentions.size.toString, y)) -> 1.0
     feats += FeatureKey("is_protein first argument and stem of event token", List(x.isProtein.toString, eventTok.stem, y)) -> 1.0
     feats += FeatureKey("protein mentions between argument cand and trigger cand", List(getProteinCountArgs(eventTok.begin, candBeginInd, sentence).toString(), y)) -> 1.0
   }
@@ -306,7 +315,6 @@ object Features {
     val candSentenceDeps = sentence.deps
     val argToken = sentence.tokens(x.begin)
     val eventIdx = eventTok.index;
-    val protMentions = sentence.mentions
 
     // model all syntactic dependency paths up to depth two
     // we extract token features the first and last token in these paths
@@ -350,7 +358,6 @@ object Features {
           })
         }
         protCount
-
       }
     }
     else 0
@@ -360,7 +367,6 @@ object Features {
   def addArgsNGramPosFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], tokens: IndexedSeq[Token], i: Int, y: Label, nGram: Int) = {
     if (i >= 0 && tokens.size > i + nGram) {
       val ngramBasicTokenStrings = getNgramBasicTokenString(i, nGram, tokens)
-//      feats += FeatureKey(" ngram word", List(ngramBasicTokenStrings._1, y)) -> 1.0
       feats += FeatureKey(" ngram stem", List(ngramBasicTokenStrings._2, y)) -> 1.0
       feats += FeatureKey(" ngram pos", List(ngramBasicTokenStrings._3, y)) -> 1.0
     }
