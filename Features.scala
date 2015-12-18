@@ -292,10 +292,6 @@ object Features {
       feats += FeatureKey("  lexical feature based on stem argument", List(tokens(candBeginInd).stem, y)) -> 1.0
       //    part-of-speech tag: 98.7 per cent of trigger words are verbs, nouns or adjective
       feats += FeatureKey("lexical feature based on pos argument", List(tokens(candBeginInd).pos, y)) -> 1.0
-
-//      feats += FeatureKey("lexical feature based on pos event trigger candidate ", List(eventTok.pos,  y)) -> 1.0
-//      feats += FeatureKey("lexical feature based on length of edge between cand trigger and cand arg", List(abs(eventTok.index - candBeginInd).toString, y)) -> 1.0
-
       feats += FeatureKey("lexical feature based on - event trigger token", List(eventTok.word.contains("-").toString, x.isProtein.toString, y)) -> 1.0
     }
     addArgsNGramPosFeaturesInPlace(feats,sentence.tokens, eventTok.index, y, 3)
