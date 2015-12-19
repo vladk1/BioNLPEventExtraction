@@ -86,7 +86,7 @@ object Problem3Arguments {
 
     // load train and dev data
     // read the specification of the method to load more/less data for debugging speedup
-    val (trainDocs, devDocs) = BioNLP.getTrainDevDocuments(train_dir,0.8,500)
+    val (trainDocs, devDocs) = BioNLP.getTrainDevDocuments(train_dir,0.8, 500)
     // load test
     val testDocs = BioNLP.getTestDocuments(test_dir)
     // make tuples (Candidate,Gold)
@@ -114,7 +114,7 @@ object Problem3Arguments {
     // define model
 //        val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
     val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeatures)
-//    val argumentModelNB = SimpleClassifier(argumentLabels, Features.myArgumentFeaturesNB)
+//    val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeaturesNB)
 
     var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,10)
 //    var argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)

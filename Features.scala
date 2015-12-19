@@ -271,7 +271,6 @@ object Features {
     feats += FeatureKey("label bias", List(y)) -> 1.0
     feats += FeatureKey("  lexical feature based on stem argument", List(tokens(begin).stem, y)) -> 1.0
     feats += FeatureKey("lexical feature based on pos argument", List(tokens(begin).pos, y)) -> 1.0
-    feats += FeatureKey("lexical feature based on pos event trigger candidate ", List(eventHeadToken.pos,  y)) -> 1.0
     feats += FeatureKey("lexical feature based on - event trigger token", List(eventHeadToken.word.contains("-").toString, x.isProtein.toString, y)) -> 1.0
 
     addArgumentEntityBasedFeaturesInPlace(x, feats,sentence, begin, end, eventHeadToken, y);

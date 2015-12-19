@@ -123,16 +123,17 @@ case class SimpleJointConstrainedClassifier(triggerLabels: Set[Label],
       // check count of label "Theme"
       if (bestArguments.count(_.toString == "Theme") == 0) {
         // make map of highest feat score for "Theme"
-        val themeScores = x.arguments.map(x => x -> dot(argumentFeature(x, argumentLabels.filterNot(_.toString() == "Theme").head), weights)).toMap withDefaultValue 0.0
+        val themeScores = x.arguments.map(x => x -> dot(argumentFeature(x, "Theme"), weights)).toMap withDefaultValue 0.0
         var count = 0
+        var updated = false
 
         for (arg <- x.arguments) {
-          if (arg == themeScores.maxBy(_._2)._1 && count == 0) {
+          if (arg == themeScores.maxBy(_._2)._1 && updated == false) {
             bestArguments = bestArguments.updated(count, "Theme")
+            updated = true
           }
           count = count + 1
         }
-
       }
     }
     (bestTrigger, bestArguments)
