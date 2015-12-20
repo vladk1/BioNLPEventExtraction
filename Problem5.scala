@@ -44,7 +44,6 @@ object Problem5 {
     println("True label counts (argument - dev):")
     println(jointDev.unzip._2.unzip._2.flatten.groupBy(x => x).mapValues(_.length))
 
-
     // get label sets
     val triggerLabels = jointTrain.map(_._2._1).toSet
     val argumentLabels = jointTrain.flatMap(_._2._2).toSet
@@ -52,9 +51,9 @@ object Problem5 {
     // define model
     //TODO: change the features function to explore different types of features
     //TODO: experiment with the unconstrained and constrained (you need to implement the inner search) models
-//        val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
-//        val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
-//        val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.defaultTriggerFeatures,Features.defaultArgumentFeatures)
+    //        val jointModel = JointUnconstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+    //        val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.myTriggerFeatures,Features.myArgumentFeatures)
+    //        val jointModel = JointConstrainedClassifier(triggerLabels,argumentLabels,Features.defaultTriggerFeatures,Features.defaultArgumentFeatures)
     val jointModel = SimpleJointConstrainedClassifier(triggerLabels, argumentLabels, Features.myTriggerFeatures, Features.myArgumentFeatures)
 
 
@@ -68,7 +67,7 @@ object Problem5 {
 
     // Triggers (dev)
     val triggerDevPred = jointDevPred.unzip._1
-    val triggerDevGold = jointDevGold.unzip._1
+    val triggerDevGold: Seq[String] = jointDevGold.unzip._1
     val triggerDevEval = Evaluation(triggerDevGold, triggerDevPred, Set("None"))
     println("Evaluation for trigger classification:")
     println(triggerDevEval.toString)
@@ -122,15 +121,13 @@ case class SimpleJointConstrainedClassifier(triggerLabels: Set[Label],
       // Constraint 2: A trigger with a label other than NONE must have at least one THEME
       // check count of label "Theme"
       if (bestArguments.count(_.toString == "Theme") == 0) {
-        // make map of highest feat score for "Theme"
+        // make map of scores of arguments being "Theme"
         val themeScores = x.arguments.map(x => x -> dot(argumentFeature(x, "Theme"), weights)).toMap withDefaultValue 0.0
         var count = 0
-        var updated = false
 
         for (arg <- x.arguments) {
-          if (arg == themeScores.maxBy(_._2)._1 && updated == false) {
+          if (arg == themeScores.maxBy(_._2)._1) {
             bestArguments = bestArguments.updated(count, "Theme")
-            updated = true
           }
           count = count + 1
         }
@@ -232,7 +229,7 @@ case class JointConstrainedClassifier(triggerLabels: Set[Label],
       })
       // Main change is that we are not interested in arguments that are not max
       // because arguments are independent, and there is no way those which are not max, won't ever be max
-      // => hence not that exhastive
+      // => hence not that wxhaustive
 
       // always continue with max valid candidate
       val maxValidCand = labelCandMap.filter(_._2).maxBy(_._1._2)

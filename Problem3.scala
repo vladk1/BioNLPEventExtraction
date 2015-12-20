@@ -52,24 +52,15 @@ object Problem3Triggers {
     //    val triggerWeights = PrecompiledTrainers.trainNB(triggerTrain,triggerModel.feat)
     val triggerWeights = PrecompiledTrainers.trainPerceptron(triggerTrain, triggerModel.feat, triggerModel.predict, 10)
 
-    //    trick to print out weights with mention of word
-//    val sortedWeights = ListMap(triggerWeights.toSeq.sortBy(_._2):_*)
-//    sortedWeights.foreach(weight => {
-//      if (weight._1.toString.contains("syntactic dependency")) {
-//        println(weight)
-//      }
-//    })
-
-
     // get predictions on dev
-    val (triggerDevPred, triggerDevGold) = triggerDev.map { case (trigger, gold) => (triggerModel.predict(trigger, triggerWeights), gold)}.unzip
+    val (triggerDevPred, triggerDevGold) = triggerDev.map { case (trigger, gold) => (triggerModel.predict(trigger, triggerWeights), gold) }.unzip
     // evaluate on dev
     val triggerDevEval = Evaluation(triggerDevGold, triggerDevPred, Set("None"))
     // print evaluation results
     println("Evaluation for trigger classification:")
     println(triggerDevEval.toString)
 
-    ErrorAnalysis(triggerDev.unzip._1,triggerDevGold,triggerDevPred).showErrors(5)
+    ErrorAnalysis(triggerDev.unzip._1, triggerDevGold, triggerDevPred).showErrors(5)
     //
     //    // get predictions on test
     val triggerTestPred = triggerTest.map { case (trigger, dummy) => triggerModel.predict(trigger, triggerWeights) }
@@ -79,14 +70,14 @@ object Problem3Triggers {
 }
 
 object Problem3Arguments {
-  def main (args: Array[String] ) {
+  def main(args: Array[String]) {
     println("Arguments Extraction")
     val train_dir = "./data/assignment2/bionlp/train"
     val test_dir = "./data/assignment2/bionlp/test"
 
     // load train and dev data
     // read the specification of the method to load more/less data for debugging speedup
-    val (trainDocs, devDocs) = BioNLP.getTrainDevDocuments(train_dir,0.8, 500)
+    val (trainDocs, devDocs) = BioNLP.getTrainDevDocuments(train_dir, 0.8, 500)
     // load test
     val testDocs = BioNLP.getTestDocuments(test_dir)
     // make tuples (Candidate,Gold)
@@ -96,64 +87,40 @@ object Problem3Arguments {
 
     // get candidates and make tuples with gold
     // no subsampling for dev/test!
-    def getArgumentCandidates(docs:Seq[Document]) = docs.flatMap(_.argumentCandidates(0.008))
-    def getTestArgumentCandidates(docs:Seq[Document]) = docs.flatMap(_.argumentCandidates())
-    val argumentTrain =  preprocess(getArgumentCandidates(trainDocs))
+    def getArgumentCandidates(docs: Seq[Document]) = docs.flatMap(_.argumentCandidates(0.008))
+    def getTestArgumentCandidates(docs: Seq[Document]) = docs.flatMap(_.argumentCandidates())
+    val argumentTrain = preprocess(getArgumentCandidates(trainDocs))
     val argumentDev = preprocess(getTestArgumentCandidates(devDocs))
     val argumentTest = preprocess(getTestArgumentCandidates(testDocs))
 
     // show statistics for counts of true labels, useful for deciding on subsampling
     println("True label counts (argument - train):")
-    println(argumentTrain.unzip._2.groupBy(x=>x).mapValues(_.length))
+    println(argumentTrain.unzip._2.groupBy(x => x).mapValues(_.length))
     println("True label counts (argument - dev):")
-    println(argumentDev.unzip._2.groupBy(x=>x).mapValues(_.length))
+    println(argumentDev.unzip._2.groupBy(x => x).mapValues(_.length))
 
     // get label set
     val argumentLabels = argumentTrain.map(_._2).toSet
 
     // define model
-//        val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
+    //        val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
     val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeatures)
-//    val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeaturesNB)
+    //    val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeaturesNB)
 
-    var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,10)
-//    var argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
+    val argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain, argumentModel.feat, argumentModel.predict, 10)
+    //    var argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
     // get predictions on dev
-    var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
+    val (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg, argumentWeights), gold) }.unzip
     // evaluate on dev
-    var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
+    val argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
     println("Evaluation for argument classification:")
     println(argumentDevEval.toString)
 
-    ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
+    ErrorAnalysis(argumentDev.unzip._1, argumentDevGold, argumentDevPred).showErrors(5)
 
     // get predictions on test
-    var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
+    val argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg, argumentWeights) }
     // write to file
-    Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
-
-    //    var scores = new mutable.HashMap[Int, Double]()
-    //
-    //    val argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
-    //    for(i<- 1 to 10){
-    //      var argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain,argumentModel.feat,argumentModel.predict,i)
-    //      // get predictions on dev
-    //      var (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg,argumentWeights), gold) }.unzip
-    //      // evaluate on dev
-    //      var argumentDevEval = Evaluation(argumentDevGold, argumentDevPred, Set("None"))
-    //      println("Evaluation for argument classification:")
-    //      println(argumentDevEval.averageF1.toString)
-    //      scores.put(i,argumentDevEval.averageF1)
-    ////      ErrorAnalysis(argumentDev.unzip._1,argumentDevGold,argumentDevPred).showErrors(5)
-    //
-    //      // get predictions on test
-    //      var argumentTestPred = argumentTest.map { case (arg, dummy) => argumentModel.predict(arg,argumentWeights) }
-    //      // write to file
-    //      Evaluation.toFile(argumentTestPred,"./data/assignment2/out/simple_argument_test.txt")
-    //    }
-    //
-    //    println(scores)
-    //    println(scores.maxBy(_._2))
+    Evaluation.toFile(argumentTestPred, "./data/assignment2/out/simple_argument_test.txt")
   }
-
 }

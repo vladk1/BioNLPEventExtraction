@@ -1,6 +1,8 @@
 package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
+
 import scala.util.Random
+import scala.collection.mutable
 
 /**
  * Created by Georgios on 16/11/2015.
@@ -9,11 +11,20 @@ case class ErrorAnalysis(candidates:Seq[Candidate], golds:Seq[Label], preds:Seq[
   val rng = new Random(101)
   val wrong = candidates.zip(golds.zip(preds)).filter(v=>v._2._1!=v._2._2).toIndexedSeq
 
+  var errorMap = new mutable.HashMap[(String,String),Int]() withDefaultValue(0)
+
+  for(i <- 0 until wrong.length){
+    errorMap.update((wrong(i)._2._1.toString(),wrong(i)._2._2.toString()), errorMap(wrong(i)._2._1.toString(),wrong(i)._2._2.toString()) + 1)
+  }
+
+//  println(errorMap.toSeq.sortBy(_._._1).toMap)
+
   /**
    * Gives a brief report of mislabelling errors
    * @param num number of mislabelled examples to show
    */
   def showErrors(num:Int=1): Unit = for (_ <- 0 until num) {
+
     def prettyText(sentence: Sentence, begin:Int, end:Int, lineLength:Int = 1000)={
       val sb = new StringBuilder()
       for (i <- begin until end) {
@@ -34,6 +45,7 @@ case class ErrorAnalysis(candidates:Seq[Candidate], golds:Seq[Label], preds:Seq[
     val thisSentence = candidate.doc.sentences(candidate.sentenceIndex)
     val candidateText = prettyText(thisSentence,candidate.begin,candidate.end)
     val sentenceText = prettyText(thisSentence,0,thisSentence.tokens.length,20)
+
     println(s"${candidateType} candidate '${candidateText}' with true label '${gold}' mislabelled as '${pred}'")
     if (isArgument){
       val trigger = thisSentence.events(candidate.parentIndex)
