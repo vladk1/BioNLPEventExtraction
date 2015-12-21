@@ -1,8 +1,5 @@
 package uk.ac.ucl.cs.mr.statnlpbook.assignment2
 
-import scala.collection.immutable.ListMap
-import scala.collection.mutable
-
 /**
  * Created by Georgios on 06/11/2015.
  */
@@ -26,7 +23,11 @@ object Problem3Triggers {
     // get candidates and make tuples with gold
     // read the specifications of the method for different subsampling thresholds
     // no subsampling for dev/test!
-    def getTriggerCandidates(docs: Seq[Document]) = docs.flatMap(_.triggerCandidates(0.02))
+    val TUNED_TRIGGER_THRESHOLD = 0.2
+    val DEFAULT_TRIGGER_THRESHOLD = 0.02
+
+    def getTriggerCandidates(docs: Seq[Document]) = docs.flatMap(_.triggerCandidates(DEFAULT_TRIGGER_THRESHOLD))
+
     def getTestTriggerCandidates(docs: Seq[Document]) = docs.flatMap(_.triggerCandidates())
     val triggerTrain = preprocess(getTriggerCandidates(trainDocs))
     val triggerDev = preprocess(getTestTriggerCandidates(devDocs))
@@ -43,9 +44,8 @@ object Problem3Triggers {
 
     // define model
     //TODO: change the features function to explore different types of features
-    //    val triggerModel = SimpleClassifier(triggerLabels, Features.defaultTriggerFeatures)
     val triggerModel = SimpleClassifier(triggerLabels, Features.myTriggerFeatures)
-
+//    val triggerModel = SimpleClassifier(triggerLabels, Features.myNBTriggerFeatures)
 
     // use training algorithm to get weights of model
     //TODO: change the trainer to explore different training algorithms
@@ -61,10 +61,10 @@ object Problem3Triggers {
     println(triggerDevEval.toString)
 
     ErrorAnalysis(triggerDev.unzip._1, triggerDevGold, triggerDevPred).showErrors(5)
-    //
-    //    // get predictions on test
+
+    // get predictions on test
     val triggerTestPred = triggerTest.map { case (trigger, dummy) => triggerModel.predict(trigger, triggerWeights) }
-    //    // write to file
+    // write to file
     Evaluation.toFile(triggerTestPred, "./data/assignment2/out/simple_trigger_test.txt")
   }
 }
@@ -77,7 +77,7 @@ object Problem3Arguments {
 
     // load train and dev data
     // read the specification of the method to load more/less data for debugging speedup
-    val (trainDocs, devDocs) = BioNLP.getTrainDevDocuments(train_dir, 0.8, 500)
+    val (trainDocs, devDocs) = BioNLP.getTrainDevDocuments(train_dir, 0.8, 500) // 500
     // load test
     val testDocs = BioNLP.getTestDocuments(test_dir)
     // make tuples (Candidate,Gold)
@@ -103,12 +103,12 @@ object Problem3Arguments {
     val argumentLabels = argumentTrain.map(_._2).toSet
 
     // define model
-    //        val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
+//    val argumentModel = SimpleClassifier(argumentLabels, Features.defaultArgumentFeatures)
     val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeatures)
-    //    val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeaturesNB)
+//    val argumentModel = SimpleClassifier(argumentLabels, Features.myArgumentFeaturesNB)
 
     val argumentWeights = PrecompiledTrainers.trainPerceptron(argumentTrain, argumentModel.feat, argumentModel.predict, 10)
-    //    var argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
+//    var argumentWeights = PrecompiledTrainers.trainNB(argumentTrain,argumentModel.feat)
     // get predictions on dev
     val (argumentDevPred, argumentDevGold) = argumentDev.map { case (arg, gold) => (argumentModel.predict(arg, argumentWeights), gold) }.unzip
     // evaluate on dev

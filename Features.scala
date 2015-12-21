@@ -63,13 +63,17 @@ object Features {
 
     // tokens
     addLexicalFeaturesInPlace(feats, thisSentence, begin, end, y)
+    // hmm, maybe add distance to the argument feature (from lecture )
+
     // mentions
     addEntityBasedFeaturesInPlace(feats, thisSentence, begin, end, y)
     // dependencies
 //    addSyntaxBasedFeaturesInPlace(feats, thisSentence, begin, end, x, y)
+
     feats.toMap
   }
 
+  // features that didn't perform well: sentence bag of words; window of 5 bag of words;
   def addLexicalFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, candBeginInd: Int, candEndInd: Int, y: Label): mutable.HashMap[assignment2.FeatureKey, Double] = {
     val candToken = sentence.tokens(candBeginInd)
 
@@ -86,13 +90,10 @@ object Features {
 
     //  Since preposition heads are often indicators of temporal class, we created a new
     //  feature indicating when an event is part of a prepositional phrase. IN=preposition
-    val isPreposition = candToken.pos != "IN"
-    feats += FeatureKey("is preposition feature", List(isPreposition.toString, y)) -> 1.0
-
+    val isNotPreposition = candToken.pos != "IN"
+    feats += FeatureKey("is not preposition feature", List(isNotPreposition.toString, y)) -> 1.0
     feats
   }
-
-  val allProteins = List[String]()
 
   def addBasicTokenFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], tokens: IndexedSeq[Token], i: Int, y: Label, parent: String) = {
     if (i >= 0 && tokens.size > i) {
@@ -104,8 +105,6 @@ object Features {
       feats += FeatureKey(parent + "bf pos", List(tokens(i).pos, y)) -> 1.0
     }
   }
-
-
   def addNGramBasicFeaturesInPlace(feats: mutable.HashMap[FeatureKey, Double], sentence: Sentence, i: Int, y: Label, nGram: Int, parent: String) = {
     val tokens = sentence.tokens
     if (i >= 0 && tokens.size > i + nGram) {
@@ -113,17 +112,36 @@ object Features {
       feats += FeatureKey(parent + " ngram word", List(ngramBasicTokenStrings._1, y)) -> 1.0
       feats += FeatureKey(parent + " ngram stem", List(ngramBasicTokenStrings._2, y)) -> 1.0
       feats += FeatureKey(parent + " ngram pos", List(ngramBasicTokenStrings._3, y)) -> 1.0
+      // features that didn't work for 500 data set: ngram bag of stem; ngram bag of words; protein aware stem ngrams;
     }
   }
-
-  def getNgramBasicTokenString(i: Int, nGram: Int, tokens: IndexedSeq[Token]) = {
+  def getNgramBasicTokenString(i: Int, nGram: Int, tokens: IndexedSeq[Token], sentence: Sentence) = {
+    // includes bag of words and protein aware ngrams
     var a = 0
-    var pos, stem, word = ""
+    var pos, stem, word, protein_aware_stem = ""
     while (a < nGram) {
+      var proteinAwareStem = tokens(i + a).stem // Protein case
+      if (sentence.mentions.filter(m=> m.label.contains("Protein")).map(_.begin).contains(i + a)) {
+        proteinAwareStem="[Protein]"
+      }
+      protein_aware_stem += (proteinAwareStem + " ")
       stem += (tokens(i + a).stem + " ")
       word += (tokens(i + a).word + " ")
       pos += (tokens(i + a).pos + " ")
       a += 1
+    }
+    val bag_of_stem = stem.split(" ").sorted.mkString(" ")
+    val bag_of_word = stem.split(" ").sorted.mkString(" ")
+    (word, stem, pos, bag_of_stem, bag_of_word, protein_aware_stem)
+  }
+  def getNgramBasicTokenString(i: Int, nGram: Int, tokens: IndexedSeq[Token]) = {
+    var a = 0
+    var pos, stem, word = ""
+    while (a < nGram) {
+        stem += (tokens(i + a).stem + " ")
+        word += (tokens(i + a).word + " ")
+        pos += (tokens(i + a).pos + " ")
+        a += 1
     }
     (word, stem, pos)
   }
@@ -148,12 +166,24 @@ object Features {
     })
     numProteinMentionsAroundCand
   }
-
   def getNearestDistanceProtein(candSentenceMentions: IndexedSeq[Mention], candBeginInd: Int, toRight: Boolean, toLeft: Boolean) = {
     val proteinDistsAroundCand = candSentenceMentions.map(mention => {
       val dist = Math.abs(mention.begin - candBeginInd)
       if ((mention.begin > candBeginInd && toRight) ||
         (mention.begin < candBeginInd && toLeft)) {
+        dist
+      }
+    }).map(_.toString).filterNot(x => x == "()").map(_.toInt).toIndexedSeq
+    if (proteinDistsAroundCand.size > 0) {
+      proteinDistsAroundCand.min
+    }
+    else "-1"
+  }
+  def getNearestDistanceArgs(candSentenceArgs: Seq[Candidate], candBeginInd: Int, toRight: Boolean, toLeft: Boolean) = {
+    val proteinDistsAroundCand = candSentenceArgs.map(arg => {
+      val dist = Math.abs(arg.begin - candBeginInd)
+      if ((arg.begin > candBeginInd && toRight) ||
+        (arg.begin < candBeginInd && toLeft)) {
         dist
       }
     }).map(_.toString).filterNot(x => x == "()").map(_.toInt).toIndexedSeq
@@ -189,26 +219,25 @@ object Features {
 
   def jumpThroughAllPaths(parentType:String, depth: Int,  y: Label, feats: mutable.HashMap[FeatureKey, Double], depsMap: mutable.Map[Int, List[(String, Int)]], sentence: Sentence, idx: Int,
                           posPath: String, edgeLabelPath: String, stemPath: String):Unit = {
-
     if (depsMap.contains(idx) && depth > 0) {
       depsMap(idx).foreach(dep => {
         val newEdgeLabelPath = edgeLabelPath + " " + dep._1
-
         val token = sentence.tokens(idx)
-        val newPosPath = posPath + " " + token.pos
-
-        var newStemPath = "" // NOT USING STEM FOR NOW
+        var newPosPath = posPath + " " + token.pos
+        var newStemPath = stemPath + " " + token.stem // NOT USING STEM FOR NOW
         if (sentence.mentions.filter(m => m.label.contains("Protein")).map(_.begin).contains(idx)) {
           newStemPath = stemPath + " " + "[Protein]"
-        } else {
-          newStemPath = stemPath + " " + token.stem
+          newPosPath = posPath + " " + "[Protein]"
         }
+        // achieve 0.4177
         addBasicTokenFeaturesInPlace(feats, sentence.tokens, idx, y, parentType+"syntactic dependency token depth="+depth)
         feats += FeatureKey(parentType+"syntactic dependency on edge and pos through the path", List(newEdgeLabelPath, newPosPath, y)) -> 1.0
         jumpThroughAllPaths(parentType, depth-1 , y, feats, depsMap, sentence, dep._2, newPosPath, newEdgeLabelPath, newStemPath)
       })
     }
   }
+
+
 
   def myArgumentFeatures(x: Candidate, y: Label): FeatureVector = {
     val doc = x.doc
@@ -226,7 +255,6 @@ object Features {
 
     feats.toMap
   }
-
 
   def myArgumentFeaturesNB(x: Candidate, y: Label): FeatureVector = {
     val doc = x.doc
@@ -330,5 +358,37 @@ object Features {
       feats += FeatureKey(" ngram stem", List(ngramBasicTokenStrings._2, y)) -> 1.0
       feats += FeatureKey(" ngram pos", List(ngramBasicTokenStrings._3, y)) -> 1.0
     }
+  }
+
+
+  def myNBTriggerFeatures(x: Candidate, y: Label): FeatureVector = {
+     val doc = x.doc
+     val sentence = doc.sentences(x.sentenceIndex) //use this to gain access to the parent sentence
+     val feats = new mutable.HashMap[FeatureKey, Double]
+     val candBeginInd = x.begin
+     val candEndInd = x.end
+
+     addBasicTokenFeaturesInPlace(feats, sentence.tokens, candBeginInd, y, "candidate token")
+
+     val candSentenceMentions = sentence.mentions
+     val nearestProteinDist = getNearestDistanceProtein(candSentenceMentions, candBeginInd, toRight = true, toLeft = true)
+     feats += FeatureKey("Nearest protein distance", List(nearestProteinDist.toString, y)) -> 1.0
+
+     feats += FeatureKey("Number of protein mentions in candidate's sentence", List(candSentenceMentions.size.toString, y)) -> 1.0
+
+     val nearestArgDist = getNearestDistanceArgs(x.arguments, candBeginInd, toRight = true, toLeft = false)
+     feats += FeatureKey("Closest arg distance", List(nearestArgDist.toString, y)) -> 1.0
+
+     val candSentenceDeps = sentence.deps
+     // model all syntactic dependency paths up to depth two
+     // we extract token features the first and last token in these paths
+     val depsMap = new mutable.HashMap[Int, List[(String, Int)]] withDefaultValue Nil
+     val depsReverseMap = new mutable.HashMap[Int, List[(String, Int)]] withDefaultValue Nil
+     candSentenceDeps.foreach(dep => {
+        depsMap(dep.head) ::=(dep.label, dep.mod)
+        depsReverseMap(dep.mod) ::=(dep.label, dep.head)
+      })
+     feats += FeatureKey("outgoing deps", List(depsMap.contains(candBeginInd).toString, y)) -> 1.0
+     feats.toMap
   }
 }
